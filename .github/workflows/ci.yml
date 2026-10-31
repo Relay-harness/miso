@@ -1,0 +1,39 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test-and-build:
+    name: Test and build (macOS)
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Check publication tree
+        run: python3 Scripts/check_source.py
+      - name: Run account-free core and reader tests
+        run: python3 Scripts/test.py
+      - name: Clean source-to-app build with verified dependency
+        run: python3 Scripts/build.py
+      - name: Package ad-hoc signed preview
+        run: python3 Scripts/package.py
+      - name: Upload test-build artifacts (not a notarized release)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: miso-preview-macos-arm64
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS
+            build/build-manifest.json
+          if-no-files-found: error
+          retention-days: 7

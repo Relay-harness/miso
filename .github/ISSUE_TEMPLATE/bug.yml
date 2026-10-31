@@ -1,0 +1,40 @@
+name: Bug report
+description: Report a reproducible bug without private account data.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Do not paste credentials, raw quota JSON, emails, cookies, or conversation logs. Report vulnerabilities privately through SECURITY.md."
+  - type: input
+    id: version
+    attributes:
+      label: Miso version or source commit
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: macOS version and architecture
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and owner CLI version, if relevant
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Minimal redacted diagnostics or synthetic screenshot

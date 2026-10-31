@@ -1,0 +1,22 @@
+name: Feature request
+description: Propose a focused developer-companion improvement.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What developer problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior and alternatives
+    validations:
+      required: true
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Permissions, data access, uploads, or dependencies required
+      description: "Keep scope small. Explain any new account, transcript, workspace, or network access."

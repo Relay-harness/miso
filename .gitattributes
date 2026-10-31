@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.png binary
+*.icns binary
+*.zip binary
+# Preserve upstream license notices verbatim, including their whitespace.
+ThirdParty/CodexBar/THIRD_PARTY_NOTICES -whitespace
