@@ -16,7 +16,7 @@ def main():
     archive = destination / ("Miso-" + version + "-macos-arm64.zip")
     if archive.exists():
         archive.unlink()
-    run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", app, archive])
+    run(["ditto", "-c", "-k", "--norsrc", "--noextattr", "--noqtn", "--keepParent", app, archive])
     (destination / "SHA256SUMS").write_text(sha256(archive) + "  " + archive.name + "\n")
     print("Created " + str(archive) + " (ad-hoc signed, not notarized)")
 
