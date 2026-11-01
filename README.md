@@ -24,6 +24,20 @@ A small native macOS menu-bar companion for checking **subscription quota used**
 
 **Not included:** verified terminal-task 429 detection, workspace packaging/upload, or an E2B/Relay runner connector. A failed quota poll is not proof that a task is locked out.
 
+## Install with Homebrew
+
+Requires Apple Silicon, macOS 14+ and [Homebrew](https://brew.sh/):
+
+```sh
+brew install --cask relay-harness/tap/miso-track
+```
+
+Quit any older Miso copy, then open **Miso** from Applications. The official [tap](https://github.com/Relay-harness/homebrew-tap) verifies the release ZIP against a pinned SHA-256. To update, quit Miso, run `brew update`, then `brew upgrade --cask relay-harness/tap/miso-track`.
+
+**Homebrew makes installation easier, not Apple-verified. This preview is ad-hoc signed and not notarized.** If macOS blocks the first launch with an unverified-developer warning, review the source/release first. Only if you trust it: try opening the app once, then choose **System Settings → Privacy & Security → Open Anyway**, authenticate if asked, and confirm **Open**. Control-click → Open alone may not work on current macOS. Do not override a malware/“will damage your computer” alert. Never disable Gatekeeper system-wide. The cask does not remove quarantine.
+
+See [Homebrew installation, updates and troubleshooting](docs/HOMEBREW.md), or [download the preview ZIP and checksum](https://github.com/Relay-harness/miso-track/releases/tag/v1.8.0).
+
 ## Build from a clean checkout
 
 Requires an Apple Silicon Mac to run the app, Apple Command Line Tools (`xcode-select --install`), and Python 3.9+ (`python3`). No Python packages or package-manager install is needed.

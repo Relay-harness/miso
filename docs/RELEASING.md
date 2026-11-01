@@ -11,3 +11,7 @@
 Developer ID signing/notarization requires the owner's Apple developer identity and is a separate optional distribution step. No signing identity, certificate, private key or Apple credential belongs in this repository. No unattended release script will upload credentials or notarize on the maintainer's behalf.
 
 Dependency updates require independent verification of the upstream archive SHA-256 and applicable licenses/notices. Dependabot covers GitHub Actions; this custom helper manifest needs maintainer review rather than an assumed automatic CVE feed.
+
+## Homebrew tap update
+
+After publishing and verifying the release assets, update `Casks/miso-track.rb` in https://github.com/Relay-harness/homebrew-tap with the new version and independently checked ZIP SHA-256. Preserve the immutable release URL, Apple Silicon/macOS minimum, quarantine behavior and honest notarization caveat. Run the tap style/audit/download checks and wait for CI. Keep preview updates manual until a stable-release policy is defined. Never mutate a released ZIP silently or add a postflight security bypass. The app release and Homebrew tap are separate repositories; publishing one does not update the other automatically.
