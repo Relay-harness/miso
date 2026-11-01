@@ -11,7 +11,7 @@ BUILD = ROOT / "build"
 
 def require_macos():
     if platform.system() != "Darwin":
-        raise SystemExit("Miso requires macOS and Apple Command Line Tools.")
+        raise SystemExit("Relay Cat requires macOS and Apple Command Line Tools.")
 
 
 def run(arguments, cwd=ROOT, timeout=300):
@@ -20,7 +20,7 @@ def run(arguments, cwd=ROOT, timeout=300):
 
 
 def swift_flags():
-    return ["-file-prefix-map", str(ROOT) + "=/miso-track"]
+    return ["-file-prefix-map", str(ROOT) + "=/relay-cat"]
 
 
 def sha256(path):

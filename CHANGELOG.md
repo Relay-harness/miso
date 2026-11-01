@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.1 — Relay Cat rename
+
+- Rename Miso Track to Relay Cat across the app, build, package and docs.
+- Use `org.relayharness.relay-cat` for preferences and `~/Library/Application Support/Relay Cat` for helper configuration. Data permissions must be approved again; shared provider sign-ins are unchanged.
+- Publish the renamed app as `Relay Cat.app` with `RelayCat-1.8.1-macos-arm64.zip`.
+
 ## 1.8.0 — Initial public preview
 
 - Publish the original native menu-bar cat and used-quota dashboard as an MIT-licensed source project.

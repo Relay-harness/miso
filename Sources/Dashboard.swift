@@ -109,7 +109,7 @@ struct DashboardActions {
 }
 
 // A glance first: quota figures, one reset line, and no setup/settings prose.
-struct MisoDashboard: View {
+struct RelayCatDashboard: View {
     @ObservedObject var model: DashboardState
     let actions: DashboardActions
     private var panelSize: CGSize { model.panelSize }
@@ -143,7 +143,7 @@ struct MisoDashboard: View {
         .background(canvas).tint(accent)
         .onExitCommand(perform: actions.close)
         .onReceive(Timer.publish(every: 15, on: .main, in: .common).autoconnect()) { _ in if !model.preview { model.sync() } }
-        .accessibilityElement(children: .contain).accessibilityLabel("Miso usage")
+        .accessibilityElement(children: .contain).accessibilityLabel("Relay Cat usage")
     }
 
     private var navigation: some View {
@@ -311,8 +311,8 @@ struct MisoDashboard: View {
         if model.preview { return "Sample data" }
         if model.selected == .codex { return "Codex quota" }
         if model.selected == .gemini { return "Gemini app" }
-        if !hasQuota { return "Miso" }
-        guard let reading = model.reading else { return "Miso" }
+        if !hasQuota { return "Relay Cat" }
+        guard let reading = model.reading else { return "Relay Cat" }
         let minutes = max(0, Int(model.now.timeIntervalSince(reading.capturedAt)/60))
         return minutes == 0 ? "Just updated" : "Updated \(minutes)m ago"
     }

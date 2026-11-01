@@ -29,7 +29,7 @@ def dependency_archive(offline=False):
         archive.unlink()
     descriptor, temporary = tempfile.mkstemp(prefix="reader-", suffix=".partial", dir=str(cache))
     try:
-        request = urllib.request.Request(info["url"], headers={"User-Agent": "miso-track-source-build"})
+        request = urllib.request.Request(info["url"], headers={"User-Agent": "relay-cat-source-build"})
         total = 0
         print("Downloading pinned CodexBar CLI " + info["version"], flush=True)
         with os.fdopen(descriptor, "wb") as output, urllib.request.urlopen(request, timeout=60) as response:
@@ -93,22 +93,22 @@ def build(offline=False):
     require_macos()
     archive = dependency_archive(offline)
     BUILD.mkdir(exist_ok=True)
-    app = BUILD / "Miso.app"
+    app = BUILD / "Relay Cat.app"
     if app.exists():
         shutil.rmtree(app)
-    executable = app / "Contents/MacOS/Miso"
+    executable = app / "Contents/MacOS/RelayCat"
     resources = app / "Contents/Resources"
     executable.parent.mkdir(parents=True)
     resources.mkdir(parents=True)
     shutil.copy2(ROOT / "Resources/Info.plist", app / "Contents/Info.plist")
-    shutil.copy2(ROOT / "LICENSE", resources / "LICENSE-Miso")
+    shutil.copy2(ROOT / "LICENSE", resources / "LICENSE-RelayCat")
     copy_reader(archive, resources / "QuotaReader")
     artwork = BUILD / "artwork"
     artwork.mkdir(exist_ok=True)
     renderer = BUILD / "render-art"
     run(["xcrun", "swiftc", "-O"] + swift_flags() + [ROOT / "Sources/CatArt.swift", ROOT / "Tools/main.swift", "-o", renderer])
     run([renderer, artwork])
-    run(["xcrun", "iconutil", "-c", "icns", artwork / "build/Miso.iconset", "-o", resources / "Miso.icns"])
+    run(["xcrun", "iconutil", "-c", "icns", artwork / "build/RelayCat.iconset", "-o", resources / "RelayCat.icns"])
     sources = sorted((ROOT / "Sources").glob("*.swift"))
     run(["xcrun", "swiftc", "-O", "-target", "arm64-apple-macosx14.0"] + swift_flags() + sources + ["-o", executable])
     run(["codesign", "--force", "--sign", "-", app])

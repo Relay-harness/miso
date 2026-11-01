@@ -2,7 +2,7 @@
 
 ## Our commitment
 
-Miso welcomes contributors and users of all backgrounds and experience levels. Participate respectfully and focus criticism on ideas, code, and behavior rather than personal identity.
+Relay Cat welcomes contributors and users of all backgrounds and experience levels. Participate respectfully and focus criticism on ideas, code, and behavior rather than personal identity.
 
 ## Expected behavior
 

@@ -1,13 +1,13 @@
-# Miso Track
+# Relay Cat
 
-[![CI](https://github.com/Relay-harness/miso-track/actions/workflows/ci.yml/badge.svg)](https://github.com/Relay-harness/miso-track/actions/workflows/ci.yml)
+[![CI](https://github.com/Relay-harness/relay-cat/actions/workflows/ci.yml/badge.svg)](https://github.com/Relay-harness/relay-cat/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 A small native macOS menu-bar companion for checking **subscription quota used**, reset times, and a cautious estimate of time to the next limit. No analytics, keyboard recording, feeding mechanics, or achievements.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/usage-dark.png">
-  <img src="docs/assets/usage-light.png" width="360" alt="Miso's vertical quota bars and time-to-limit estimate, showing clearly labeled synthetic sample data">
+  <img src="docs/assets/usage-light.png" width="360" alt="Relay Cat's vertical quota bars and time-to-limit estimate, showing clearly labeled synthetic sample data">
 </picture>
 
 **Public preview · Apple Silicon · macOS 14+**. The screenshot is synthetic. Provider support does not guarantee that every account exposes a compatible quota endpoint.
@@ -26,35 +26,36 @@ A small native macOS menu-bar companion for checking **subscription quota used**
 
 ## Install with Homebrew
 
+
 Requires Apple Silicon, macOS 14+ and [Homebrew](https://brew.sh/):
 
 ```sh
-brew install --cask relay-harness/tap/miso-track
+brew install --cask relay-harness/tap/relay-cat
 ```
 
-Quit any older Miso copy, then open **Miso** from Applications. The official [tap](https://github.com/Relay-harness/homebrew-tap) verifies the release ZIP against a pinned SHA-256. To update, quit Miso, run `brew update`, then `brew upgrade --cask relay-harness/tap/miso-track`.
+Quit any older Relay Cat copy, then open **Relay Cat** from Applications. The official [tap](https://github.com/Relay-harness/homebrew-tap) verifies the release ZIP against a pinned SHA-256. To update, quit Relay Cat, run `brew update`, then `brew upgrade --cask relay-harness/tap/relay-cat`.
 
 **Homebrew makes installation easier, not Apple-verified. This preview is ad-hoc signed and not notarized.** If macOS blocks the first launch with an unverified-developer warning, review the source/release first. Only if you trust it: try opening the app once, then choose **System Settings → Privacy & Security → Open Anyway**, authenticate if asked, and confirm **Open**. Control-click → Open alone may not work on current macOS. Do not override a malware/“will damage your computer” alert. Never disable Gatekeeper system-wide. The cask does not remove quarantine.
 
-See [Homebrew installation, updates and troubleshooting](docs/HOMEBREW.md), or [download the preview ZIP and checksum](https://github.com/Relay-harness/miso-track/releases/tag/v1.8.0).
+See [Homebrew installation, updates and troubleshooting](docs/HOMEBREW.md), or [download the preview ZIP and checksum](https://github.com/Relay-harness/relay-cat/releases/tag/v1.8.1).
 
 ## Build from a clean checkout
 
 Requires an Apple Silicon Mac to run the app, Apple Command Line Tools (`xcode-select --install`), and Python 3.9+ (`python3`). No Python packages or package-manager install is needed.
 
 ```sh
-git clone https://github.com/Relay-harness/miso-track.git
-cd miso-track
+git clone https://github.com/Relay-harness/relay-cat.git
+cd relay-cat
 python3 Scripts/test.py
 python3 Scripts/build.py
-open build/Miso.app
+open "build/Relay Cat.app"
 ```
 
 The build generates the original icon, creates Info.plist/resources, downloads the pinned CodexBar CLI release, verifies its SHA-256, compiles the app, and ad-hoc signs it. The helper is **not** committed as a binary. The first build needs internet access; subsequent builds can use `python3 Scripts/build.py --offline` with a verified cached archive.
 
 Build scripts can cross-compile the arm64 app on an Intel macOS build host; the resulting app is **not an Intel app**. Core/reader tests run for the build host. Interactive UI tests require Apple Silicon.
 
-To install, quit any older Miso instance and copy `build/Miso.app` to your Applications folder. Downloadable preview binaries, when provided, are **ad-hoc signed and not notarized**. Review the source/checksum and follow macOS's explicit Privacy & Security approval flow only if you trust the build. Do not disable Gatekeeper system-wide.
+To install, quit any older Relay Cat instance and copy `build/Relay Cat.app` to your Applications folder. Downloadable preview binaries, when provided, are **ad-hoc signed and not notarized**. Review the source/checksum and follow macOS's explicit Privacy & Security approval flow only if you trust the build. Do not disable Gatekeeper system-wide.
 
 ## Connect
 
@@ -65,7 +66,7 @@ The cat and timer work offline. Quota access starts **off**. Click **Connect** a
 - **Gemini:** add the tab, sign in to the Gemini app in a supported browser, then separately approve browser access. Gemini CLI/API quota is not substituted.
 - **Grok:** add the tab and use the supported Grok CLI's subscription OAuth sign-in. API wallet credit is not substituted.
 
-The footer refresh button also supports **Cmd-R**. Settings → **Data permissions…** lets you revoke live quota, local-stat, and separately approved Gemini access. No login or API key is shipped with Miso. See [authentication and provider limits](docs/PROVIDERS.md).
+The footer refresh button also supports **Cmd-R**. Settings → **Data permissions…** lets you revoke live quota, local-stat, and separately approved Gemini access. No login or API key is shipped with Relay Cat. See [authentication and provider limits](docs/PROVIDERS.md).
 
 ## Tests and packaging
 
@@ -80,9 +81,9 @@ The native command builds the app and opens an owned test popover on an interact
 
 ## Privacy and persistence
 
-Miso itself has no analytics or keystroke recorder. The helper can use existing provider logins/owner CLIs after consent; Gemini browser access and local token scans have separate approvals. Third-party owner CLIs may have their own settings/telemetry. Miso does not persist raw quota responses, account emails, prompts, or transcript text. Forecast history and timers are in memory. See [PRIVACY.md](PRIVACY.md).
+Relay Cat itself has no analytics or keystroke recorder. The helper can use existing provider logins/owner CLIs after consent; Gemini browser access and local token scans have separate approvals. Third-party owner CLIs may have their own settings/telemetry. Relay Cat does not persist raw quota responses, account emails, prompts, or transcript text. Forecast history and timers are in memory. See [PRIVACY.md](PRIVACY.md).
 
-Public builds use preference domain `org.relayharness.miso-track`. An earlier private/local Miso build may use another domain; public builds require their own consent. Removing Miso does not log you out of provider CLIs.
+Relay Cat uses preference domain `org.relayharness.relay-cat`. When moving from Miso Track, quit the old app and approve data permissions again; shared provider CLI sign-ins are unchanged. An earlier private/local Relay Cat build may use another domain; public builds require their own consent. Removing Relay Cat does not log you out of provider CLIs.
 
 ## Project
 

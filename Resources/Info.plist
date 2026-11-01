@@ -3,21 +3,21 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>Miso</string>
+	<string>Relay Cat</string>
 	<key>CFBundleExecutable</key>
-	<string>Miso</string>
+	<string>RelayCat</string>
 	<key>CFBundleIconFile</key>
-	<string>Miso.icns</string>
+	<string>RelayCat.icns</string>
 	<key>CFBundleIdentifier</key>
-	<string>org.relayharness.miso-track</string>
+	<string>org.relayharness.relay-cat</string>
 	<key>CFBundleName</key>
-	<string>Miso</string>
+	<string>Relay Cat</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.8.0</string>
+	<string>1.8.1</string>
 	<key>CFBundleVersion</key>
-	<string>10</string>
+	<string>11</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>

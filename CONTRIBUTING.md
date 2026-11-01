@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping keep Miso small, native, and honest.
+Thanks for helping keep Relay Cat small, native, and honest.
 
 ## Before changing code
 

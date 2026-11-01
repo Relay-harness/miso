@@ -33,7 +33,7 @@ let icon = NSImage(size: NSSize(width: 1024, height: 1024), flipped: false) { _ 
     CatArt.image(frame: 0, sleeping: false, palette: 0).draw(in: NSRect(x: 44, y: 226, width: 936, height: 572))
     return true
 }
-let iconset = root + "/build/Miso.iconset"
+let iconset = root + "/build/RelayCat.iconset"
 try FileManager.default.createDirectory(atPath: iconset, withIntermediateDirectories: true)
 for base in [16,32,128,256,512] {
     try png(icon, at: iconset + "/icon_\(base)x\(base).png", size: base)

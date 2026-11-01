@@ -7,7 +7,7 @@
 | Gemini | Separately approved supported browser/app session | Gemini app quota, not Gemini CLI/API |
 | Grok | Supported Grok CLI subscription OAuth | Subscription windows, not xAI API wallet credit |
 
-Install the relevant provider CLI yourself. Miso does not ship a provider account, API key or login session. For Claude, `claude auth login` authenticates the default profile; browser sign-in alone does not. For Codex, use `codex login`. The wrapper intentionally does not inherit custom CLAUDE_CONFIG_DIR/CODEX_HOME profiles or token/key environment variables.
+Install the relevant provider CLI yourself. Relay Cat does not ship a provider account, API key or login session. For Claude, `claude auth login` authenticates the default profile; browser sign-in alone does not. For Codex, use `codex login`. The wrapper intentionally does not inherit custom CLAUDE_CONFIG_DIR/CODEX_HOME profiles or token/key environment variables.
 
 The reader's PATH includes user-local, Grok-local, common Homebrew and system binary locations. A CLI available only through a shell alias, shell startup script, or an unsupported version-manager path may not be found. Do not fix this by passing every environment variable through the app. Report a redacted executable-resolution issue.
 

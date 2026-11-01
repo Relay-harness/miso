@@ -4,8 +4,8 @@ import SwiftUI
 MainActor.assumeIsolated {
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory)
-    let defaults = UserDefaults(suiteName: "org.relayharness.miso-track.design-preview")!
-    defaults.removePersistentDomain(forName: "org.relayharness.miso-track.design-preview")
+    let defaults = UserDefaults(suiteName: "org.relayharness.relay-cat.design-preview")!
+    defaults.removePersistentDomain(forName: "org.relayharness.relay-cat.design-preview")
     let store = QuotaStore(defaults: defaults)
     if CommandLine.arguments.contains("--all-providers") {
         store.setProviderVisible(.gemini, true); store.setProviderVisible(.grok, true)
@@ -15,7 +15,7 @@ MainActor.assumeIsolated {
     let smallDisplay = CommandLine.arguments.contains("--small")
     model.showingStats = CommandLine.arguments.contains("--stats")
     let size = DashboardLayout.size(for: smallDisplay ? CGSize(width: 600, height: 300) : CGSize(width: 1470, height: 856), expanded: model.expandedLayout)
-    let root = MisoDashboard(model: model, actions: actions, panelSize: size)
+    let root = RelayCatDashboard(model: model, actions: actions, panelSize: size)
         .environment(\.colorScheme, CommandLine.arguments.contains("--dark") ? .dark : .light)
     let host = NSHostingView(rootView: root)
     host.frame = NSRect(origin: .zero, size: size)

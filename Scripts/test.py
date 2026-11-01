@@ -28,7 +28,7 @@ def main():
         app = build(args.offline)
         results = tests / "native-results"
         results.mkdir(exist_ok=True)
-        run([app / "Contents/MacOS/Miso", "--verify-quota-menu"], cwd=results, timeout=30)
+        run([app / "Contents/MacOS/RelayCat", "--verify-quota-menu"], cwd=results, timeout=30)
     print("All requested fixture tests passed. No private account validation was performed.", flush=True)
 
 

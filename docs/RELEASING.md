@@ -1,5 +1,9 @@
 # Release checklist
 
+## Rename rollout
+
+Before announcing Relay Cat, rename the GitHub repository from `Relay-harness/miso-track` to `Relay-harness/relay-cat` and publish the renamed `relay-cat` cask in the separate Homebrew tap. Build new `RelayCat-<version>-macos-arm64.zip` assets containing `Relay Cat.app`; old release archives still contain the old app name and must not be silently replaced. Update the tap URL, app stanza and checksum for the new release. These external changes are not performed by a local source rename.
+
 1. Use the maintainer account with repository write permission. Review LICENSE, ThirdParty notices and the pinned reader hash. Never publish local credentials, raw quota output, research downloads, build logs or old app backups.
 2. Update Resources/Info.plist, the About version and CHANGELOG.md. Use a `vMAJOR.MINOR.PATCH` tag matching the public version.
 3. In a clean checkout, run `python3 Scripts/check_source.py`, `python3 Scripts/test.py`, and `python3 Scripts/build.py`.
@@ -14,4 +18,4 @@ Dependency updates require independent verification of the upstream archive SHA-
 
 ## Homebrew tap update
 
-After publishing and verifying the release assets, update `Casks/miso-track.rb` in https://github.com/Relay-harness/homebrew-tap with the new version and independently checked ZIP SHA-256. Preserve the immutable release URL, Apple Silicon/macOS minimum, quarantine behavior and honest notarization caveat. Run the tap style/audit/download checks and wait for CI. Keep preview updates manual until a stable-release policy is defined. Never mutate a released ZIP silently or add a postflight security bypass. The app release and Homebrew tap are separate repositories; publishing one does not update the other automatically.
+After publishing and verifying the release assets, update `Casks/relay-cat.rb` in https://github.com/Relay-harness/homebrew-tap with the new version and independently checked ZIP SHA-256. Preserve the immutable release URL, Apple Silicon/macOS minimum, quarantine behavior and honest notarization caveat. Run the tap style/audit/download checks and wait for CI. Keep preview updates manual until a stable-release policy is defined. Never mutate a released ZIP silently or add a postflight security bypass. The app release and Homebrew tap are separate repositories; publishing one does not update the other automatically.

@@ -212,7 +212,7 @@ final class QuotaStore {
     private func locations() throws -> (URL, URL, URL) {
         guard let resources = Bundle.main.resourceURL else { throw CocoaError(.fileNoSuchFile) }
         let helper = resources.appendingPathComponent("QuotaReader/CodexBarCLI")
-        let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Miso/QuotaReader", isDirectory: true)
+        let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Relay Cat/QuotaReader", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let config = directory.appendingPathComponent("config.json")
         let providers: [[String: Any]] = QuotaProvider.allCases.map {
@@ -233,7 +233,7 @@ final class QuotaStore {
         guard enabled, !refreshing, !connectingBrowser else { return }
         let locations: (URL, URL, URL)
         do { locations = try self.locations() }
-        catch { for p in QuotaProvider.allCases { problems[p] = "Quota reader is unavailable. Reinstall Miso." }; onChange?(); return }
+        catch { for p in QuotaProvider.allCases { problems[p] = "Quota reader is unavailable. Reinstall Relay Cat." }; onChange?(); return }
         refreshing = true; lastAttempt = Date()
         let token = generation
         let jobs = quotaProvidersForRefresh.map { ($0, environment(config: locations.2, provider: $0)) }

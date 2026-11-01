@@ -9,7 +9,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Miso version or source commit
+      label: Relay Cat version or source commit
     validations:
       required: true
   - type: input
