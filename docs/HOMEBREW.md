@@ -57,3 +57,7 @@ Uninstall removes only the Homebrew-managed app. No zap operation is configured:
 - **Checksum mismatch**: stop. Do not bypass SHA verification. Report the release version and redacted error to the tap maintainer.
 - **Download/tap lookup fails**: check connectivity and `brew update`; report package-manager errors in the tap repository, application bugs in miso-track.
 - **Quota is unavailable**: installation does not grant data access or authenticate providers. Use Connect, the separate permission prompts, and docs/PROVIDERS.md.
+
+### Homebrew 7 cask trust
+
+The fully qualified install command automatically records trust for this specific cask. Standalone `brew info`, `brew fetch` or `brew audit` commands can refuse an untrusted third-party cask before installation. After reviewing the cask, Homebrew 7 users can run `brew trust --cask relay-harness/tap/miso-track` to authorize only its package definition. Do not trust all taps as a workaround. This is separate from Apple verification and does not disable Gatekeeper. Earlier Homebrew versions may not have the trust command.
