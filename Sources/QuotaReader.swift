@@ -102,6 +102,7 @@ final class QuotaStore {
     private var tokenGeneration = 0
     var tokensEnabled: Bool { defaults.bool(forKey: "localTokenStatsEnabled") }
     var onChange: (() -> Void)?
+    var onFreshReading: ((QuotaReading) -> Void)?
     private var generation = 0
     private var lastAttempt = Date.distantPast
     var enabled: Bool { defaults.bool(forKey: "realQuotasEnabled") }
@@ -258,6 +259,7 @@ final class QuotaStore {
                         if let reading = result.reading {
                             readings[result.provider] = reading
                             history.observe(reading)
+                            onFreshReading?(reading)
                         }
                         problems[result.provider] = result.problem
                         onChange?()

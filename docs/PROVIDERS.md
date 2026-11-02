@@ -17,4 +17,6 @@ Quota refresh is manual or about every five minutes after approval. Old readings
 
 The app retains only in-memory account-scope digests for forecast continuity. Forecasts need at least three fresh same-scope measurements, a sufficient time span and movement, matching reset boundaries, and no long gap. An app restart clears the pace history. If identity/reset metadata is missing, the app explains why no ETA is available rather than guessing.
 
+Community sharing is a separate opt-in in new source builds. Only fresh standard Claude/Codex 300-minute and 10080-minute windows are uploaded; Gemini/Grok, model-specific extra windows and file-upload allowances are not inferred. The public collector never performs provider login. See [COMMUNITY_SIGNALS.md](COMMUNITY_SIGNALS.md).
+
 Quota 100% or a rate-limited quota-check endpoint is not sufficient evidence of a hard 429 in an active terminal task. No task-freeze/upload command is enabled in this release.

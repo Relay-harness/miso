@@ -23,6 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     private var menuOpen = false
     private var completed = 0
     private lazy var quotas = QuotaStore(defaults: settings)
+    private lazy var sharing = CommunitySharing(defaults: settings)
+    private lazy var calibration = CalibrationCoordinator(defaults: settings)
     private let popover = NSPopover()
     private var dashboardHost: NSViewController?
     private var pendingPopoverCheck: (@MainActor @Sendable () -> Void)?
@@ -59,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             self?.update()
             self?.dashboard.sync()
         }
+        quotas.onFreshReading = { [weak self] reading in self?.sharing.submit(reading) }
         quotas.refreshIfDue()
         update()
         if CommandLine.arguments.contains("--verify-quota-menu") {
@@ -126,6 +129,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let permissions = NSMenu(title: "Data permissions")
         add(permissions, "Live quota access", #selector(toggleQuotas)).state = quotas.enabled ? .on : .off
         add(permissions, "Local token statistics", #selector(toggleTokenStats)).state = quotas.tokensEnabled ? .on : .off
+        add(permissions, "Share community quota signals…", #selector(toggleCommunitySharing)).state = sharing.enabled ? .on : .off
+        add(permissions, "Community sharing details…", #selector(communityDetails))
+        add(permissions, calibration.running ? "Stop allowance calibration" : "Run allowance calibration…", #selector(toggleAllowanceCalibration))
+        add(permissions, "Allowance calibration status…", #selector(calibrationDetails))
+        if calibration.transport.hasIdentity { add(permissions, "Delete calibration reports…", #selector(deleteCalibrationReports)) }
+        if sharing.hasIdentity { add(permissions, "Delete my shared readings…", #selector(deleteCommunityReadings)) }
         if quotas.enabled && quotas.visibleProviders.contains(.gemini) {
             add(permissions, "Gemini browser access", #selector(connectGemini)).state = quotas.geminiBrowserAllowed ? .on : .off
         }
@@ -179,7 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Meet Relay Cat"
-        alert.informativeText = "A tiny, original pixel cat for your menu bar.\n\nRelay Cat naps after 90 seconds of inactivity, or during a five-minute focus break.\n\nOptional real subscription quotas use the bundled CodexBar reader and your existing sign-ins. No API-cost estimates are shown as quota. Gemini browser access requires separate consent. No raw quota responses or account emails are saved by Relay Cat.\n\nNo analytics or keyboard recording. OpenAI and Claude tabs, optional Gemini and Grok, quota pace forecasts and optional local token stats. Version 1.8.1 · Independent of Mac Pet."
+        alert.informativeText = "A tiny, original pixel cat for your menu bar.\n\nRelay Cat naps after 90 seconds of inactivity, or during a five-minute focus break.\n\nOptional real subscription quotas use the bundled CodexBar reader and your existing sign-ins. No API-cost estimates are shown as quota. Gemini browser access requires separate consent. No raw quota responses or account emails are saved by Relay Cat.\n\nNo advertising analytics or keyboard recording. Community quota sharing is off by default and requires separate consent. OpenAI and Claude tabs, optional Gemini and Grok, quota pace forecasts and optional local token stats. Version 1.8.1 · Independent of Mac Pet."
         alert.addButton(withTitle: "Lovely")
         alert.runModal()
     }
@@ -305,7 +314,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let removed = Set(["Disconnect live quotas", "Refresh quotas and tokens", "Stop reading local tokens"])
         self.verifyCondition(menu.items.allSatisfy { !removed.contains($0.title) }, "Redundant top-level actions are gone")
         let permissions = sections[1].last?.submenu
-        self.verifyCondition(permissions?.items.map(\.title) == ["Live quota access", "Local token statistics"], "Revocation remains in Data permissions")
+        self.verifyCondition(permissions?.items.map(\.title) == ["Live quota access", "Local token statistics", "Share community quota signals…", "Community sharing details…", "Run allowance calibration…", "Allowance calibration status…"], "Revocation remains in Data permissions")
         self.verifyCondition(permissions?.items.allSatisfy { $0.state == .off } == true, "Data permissions remain opt-in")
         menu.performActionForItem(at: 0)
         self.verifyCondition(!sleeping && catRest.manuallyAwake, "Manual wake still works")
@@ -543,7 +552,135 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         alert.runModal()
     }
 
-    @objc private func quit() { NSApp.terminate(nil) }
+    @objc private func toggleCommunitySharing() {
+        if sharing.enabled { sharing.stop(); return }
+        popover.performClose(nil); NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Share quota signals with the community?"
+        alert.informativeText = "Off by default. Only fresh Claude/Codex five-hour and weekly quota percentages, rounded DOWN to 5%, plus reset/observation times rounded to five minutes, and your declared plan will be sent about every five minutes.\n\nNo email, account ID, provider token, prompts, files, or token logs are sent. A random signing identity stays in this Mac's Keychain. The server can link your submissions and sees your network address: pseudonymous, not untraceable. Readings expire after 48 hours; public cohorts need at least 5 installations. Signatures do not prove provider truth.\n\nEnter a server you trust. Stop sharing anytime; use Delete my shared readings to remove prior reports. Changing server requires deleting the previous identity first."
+        alert.addButton(withTitle: "Agree and share"); alert.addButton(withTitle: "Cancel")
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 390, height: 136))
+        let urlLabel = NSTextField(labelWithString: "Community server (HTTPS; localhost allowed)")
+        urlLabel.frame = NSRect(x: 0, y: 113, width: 390, height: 18); view.addSubview(urlLabel)
+        let url = NSTextField(string: sharing.endpoint?.absoluteString ?? "")
+        url.placeholderString = "https://your-community-server.example"
+        url.frame = NSRect(x: 0, y: 82, width: 390, height: 26); view.addSubview(url)
+        let claude = NSPopUpButton(frame: NSRect(x: 180, y: 43, width: 210, height: 26)); claude.addItems(withTitles: ["unknown", "pro", "max", "team", "enterprise"])
+        let codex = NSPopUpButton(frame: NSRect(x: 180, y: 6, width: 210, height: 26)); codex.addItems(withTitles: ["unknown", "plus", "pro", "team", "enterprise"])
+        let claudeLabel = NSTextField(labelWithString: "Claude plan (declared)"); claudeLabel.frame = NSRect(x: 0, y: 47, width: 177, height: 18)
+        let codexLabel = NSTextField(labelWithString: "Codex plan (declared)"); codexLabel.frame = NSRect(x: 0, y: 10, width: 177, height: 18)
+        [claudeLabel, codexLabel, claude, codex].forEach { view.addSubview($0) }
+        alert.accessoryView = view; alert.window.initialFirstResponder = url
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        guard let server = CommunityPayload.endpoint(url.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            communityAlert("Sharing stays off", "Use an HTTPS server root without credentials, query, or path. HTTP is accepted only for local development."); return
+        }
+        do {
+            try sharing.enable(server: server, claudePlan: claude.titleOfSelectedItem ?? "unknown", codexPlan: codex.titleOfSelectedItem ?? "unknown")
+            if quotas.enabled { quotas.refresh() }
+            communityAlert("Community sharing enabled", "Only fresh supported quota windows will be sent. Open Data permissions → Community sharing details to see the transport status. Existing downloads are not retroactively opted in.")
+        } catch { communityAlert("Sharing stays off", "Unable to configure signing identity or server. If changing server, delete previously shared readings first. Check macOS Keychain access.") }
+    }
+    private func communityAlert(_ title: String, _ detail: String) {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert(); alert.messageText = title; alert.informativeText = detail
+        alert.addButton(withTitle: "OK"); alert.runModal()
+    }
+    @objc private func communityDetails() {
+        communityAlert("Community quota sharing", "Sharing: \(sharing.enabled ? "on" : "off")\nServer: \(sharing.endpoint?.absoluteString ?? "not configured")\nStatus: \(sharing.status)\n\nLocal quota reads and community sharing require separate consent. Failed quota reads, stale/expired values, model-specific/file-upload limits without supported measured windows, and Gemini/Grok data are not uploaded. No file contents are inspected. OpenAI quota means Codex subscription windows, not every ChatGPT model. Your signing key never leaves this Mac.")
+    }
+    @objc private func deleteCommunityReadings() {
+        popover.performClose(nil); NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert(); alert.messageText = "Delete shared quota readings?"
+        alert.informativeText = "Sharing will stop. A signed deletion request removes this identity's readings from the configured server. The deletion key is kept if the server cannot confirm, so you can retry. Server backups or reverse-proxy logs require the operator's retention policy."
+        alert.addButton(withTitle: "Delete and stop"); alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        sharing.deleteShared { [weak self] success in self?.communityAlert(success ? "Shared readings deleted" : "Deletion not confirmed", success ? "Sharing is off. The local signing identity was removed." : "No deletion was confirmed. Sharing is off and the identity remains so you can retry.") }
+    }
+
+    @objc private func toggleAllowanceCalibration() {
+        if calibration.running { calibration.stop(); return }
+        popover.performClose(nil); NSApp.activate(ignoringOtherApps: true)
+        let candidates = [FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/claude"),
+            URL(fileURLWithPath: "/opt/homebrew/bin/claude"), URL(fileURLWithPath: "/usr/local/bin/claude")]
+        guard let cli = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0.path) }),
+              let resources = Bundle.main.resourceURL else {
+            communityAlert("Calibration unavailable", "Install and sign into Claude Code's default subscription profile first. No CLI is downloaded, no sign-in is started, and no workload runs automatically."); return
+        }
+        let reader = resources.appendingPathComponent("QuotaReader/CodexBarCLI")
+        guard FileManager.default.isExecutableFile(atPath: reader.path) else { communityAlert("Calibration unavailable", "The bundled quota reader is missing. Rebuild or reinstall Relay Cat."); return }
+        let alert = NSAlert()
+        alert.messageText = "Run an experimental Claude allowance calibration?"
+        alert.informativeText = "This is NOT passive tracking. It runs 6 or 12 fixed public sorting tasks using Claude Sonnet 4.5, with tools, MCP, custom hooks and session persistence disabled. It takes roughly 6–15 minutes and CONSUMES YOUR SUBSCRIPTION QUOTA. It may reach a provider limit. A task count is not a token/cost guarantee. No automatic retries or background benchmarks. Stop in Data permissions at any time.\n\nUse the account exclusively for this session: no other Claude Code, browser, desktop or mobile activity. Do not change account, plan or model. Unknown identity/authentication, resets, incomplete task output and insufficient quota movement are rejected. No raw prompts, outputs, files or credentials are uploaded.\n\nOnly after another confirmation: signed, pseudonymous interval quota/task/token/cache counters and declared tier go to your chosen collector for SEVEN DAYS, separately from ordinary quota-sharing consent. A separate Keychain identity links your reports and the collector sees your IP. This estimates effective allowance; it cannot prove official provider limits."
+        alert.addButton(withTitle: "Agree and run bounded session"); alert.addButton(withTitle: "Cancel")
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 430, height: 150))
+        let label = NSTextField(labelWithString: "Trusted collector root (HTTPS; localhost for development)")
+        label.frame = NSRect(x: 0, y: 127, width: 430, height: 18); view.addSubview(label)
+        let url = NSTextField(string: calibration.transport.endpoint?.absoluteString ?? "")
+        url.placeholderString = "https://your-community-server.example"
+        url.frame = NSRect(x: 0, y: 96, width: 430, height: 25); view.addSubview(url)
+        let plan = NSPopUpButton(frame: NSRect(x: 0, y: 56, width: 205, height: 26)); plan.addItems(withTitles: ["pro", "max_5x", "max_20x"]); view.addSubview(plan)
+        let limit = NSPopUpButton(frame: NSRect(x: 220, y: 56, width: 210, height: 26)); limit.addItems(withTitles: ["6 tasks (lower usage)", "12 tasks (higher usage)"]); view.addSubview(limit)
+        let exclusive = NSButton(checkboxWithTitle: "I will not use this Claude account elsewhere during the session.", target: nil, action: nil)
+        exclusive.frame = NSRect(x: 0, y: 12, width: 430, height: 32); exclusive.font = NSFont.systemFont(ofSize: 11); view.addSubview(exclusive)
+        alert.accessoryView = view; alert.window.initialFirstResponder = url
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        guard exclusive.state == .on, let server = CommunityPayload.endpoint(url.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            communityAlert("Calibration stays off", "Explicit exclusive-account confirmation and a trusted HTTPS collector root are required. Loopback HTTP is allowed for local development."); return
+        }
+        var directory: URL?
+        do {
+            try calibration.transport.configure(server)
+            let work = FileManager.default.temporaryDirectory.appendingPathComponent("relay-cat-calibration-" + UUID().uuidString, isDirectory: true)
+            directory = work
+            try FileManager.default.createDirectory(at: work, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+            let config = work.appendingPathComponent("reader-config.json")
+            let document: [String: Any] = ["version": 1, "providers": [["id": "claude", "enabled": true, "source": "cli", "cookieSource": "off"]], "shareUsageWithCLI": false]
+            try JSONSerialization.data(withJSONObject: document).write(to: config, options: [.atomic])
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: config.path)
+            var environment = QuotaReader.environment(home: FileManager.default.homeDirectoryForCurrentUser, config: config, allowBrowserCookies: false)
+            environment["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
+            environment["DISABLE_AUTOUPDATER"] = "1"
+            let configuration = CalibrationConfiguration(cli: cli, reader: reader, directory: work, config: config,
+                plan: plan.titleOfSelectedItem ?? "pro", taskLimit: limit.indexOfSelectedItem == 0 ? 6 : 12, environment: environment)
+            calibration.start(configuration: configuration, confirm: { [weak self] candidate in self?.confirmCalibration(candidate) ?? false },
+                finished: { [weak self] status in self?.communityAlert("Allowance calibration", status) })
+        } catch {
+            if let directory { try? FileManager.default.removeItem(at: directory) }
+            communityAlert("Calibration did not start", (error as? CalibrationFailure)?.message ?? "Unable to prepare the local calibration safely.")
+        }
+    }
+    private func confirmCalibration(_ candidate: CalibrationCandidate) -> Bool {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert(); alert.messageText = "Upload this measured calibration interval?"
+        alert.informativeText = "The fixed workload completed and produced \(candidate.measurements.count) eligible window(s). No raw prompt, output or file will be sent. Signed quota endpoints and aggregate task/token/cache counters are retained for seven days. Public estimates still need historical data and 10 matched installations.\n\nIf any other activity used this Claude account, the evidence is not valid. Confirm again, or discard it. Discarding cannot undo quota already consumed."
+        let check = NSButton(checkboxWithTitle: "No other account activity or account/plan change occurred.", target: nil, action: nil)
+        check.frame = NSRect(x: 0, y: 0, width: 410, height: 34); check.font = NSFont.systemFont(ofSize: 11)
+        alert.accessoryView = check; alert.addButton(withTitle: "Confirm and upload"); alert.addButton(withTitle: "Discard")
+        return alert.runModal() == .alertFirstButtonReturn && check.state == .on
+    }
+    @objc private func calibrationDetails() {
+        communityAlert("Allowance calibration", "Running: \(calibration.running ? "yes" : "no")\nServer: \(calibration.transport.endpoint?.absoluteString ?? "not configured")\nStatus: \(calibration.status)\n\nNothing starts automatically. Each bounded session requires consent and a second coverage confirmation before upload. Ordinary quota readings and daily token totals are not calibration evidence. Stop a running session from Data permissions. Delete calibration reports separately from ordinary shared readings.")
+    }
+    @objc private func deleteCalibrationReports() {
+        guard !calibration.running else { communityAlert("Stop calibration first", "Stop the active session and wait for it to finish before deleting its identity."); return }
+        let alert = NSAlert(); alert.messageText = "Delete calibration reports?"
+        alert.informativeText = "This removes the calibration identity's reports from its configured collector and then its local Keychain key. Failed deletion retains the key for retry. This does not delete ordinary quota reports signed with the separate community key. Operator backups/logs need a separate policy."
+        alert.addButton(withTitle: "Delete calibration reports"); alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            do { try await calibration.transport.delete(); communityAlert("Calibration deletion", calibration.transport.status) }
+            catch { communityAlert("Deletion not confirmed", (error as? CalibrationFailure)?.message ?? "The signing key is retained so you can retry.") }
+        }
+    }
+
+    @objc private func quit() {
+        if calibration.running {
+            calibration.stop()
+            DispatchQueue.main.asyncAfter(deadline: .now()+3) { NSApp.terminate(nil) }
+        } else { NSApp.terminate(nil) }
+    }
 }
 
 MainActor.assumeIsolated {

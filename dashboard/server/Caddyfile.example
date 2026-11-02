@@ -1,0 +1,5 @@
+# Replace this reserved example host with your own DNS name before deployment.
+# Default Caddy access logging is not enabled here. Review operator retention policy.
+signals.example.com {
+    reverse_proxy 127.0.0.1:8787
+}

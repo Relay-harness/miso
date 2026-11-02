@@ -3,9 +3,9 @@
 [![CI](https://github.com/Relay-harness/relay-cat/actions/workflows/ci.yml/badge.svg)](https://github.com/Relay-harness/relay-cat/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Miso is a small macOS cat that sits on your menu bar to tell you how much of your **subscription quota is used**, **reset times**, and a cautious estimate of **time to the next limit**. 
+Miso is a small macOS cat that sits on your menu bar to tell you how much of your **subscription quota is used**, **reset times**, and a cautious estimate of **time to the next limit**.
 
-Miso is made to be quiet and respectful. No analytics, keyboard recording, feeding mechanics, or achievements.
+Miso is made to be quiet and respectful. No analytics, keyboard recording, feeding mechanics, or achievements. Community quota sharing is separately opt-in in new source builds.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/usage-dark.png">
@@ -21,6 +21,12 @@ Miso is made to be quiet and respectful. No analytics, keyboard recording, feedi
 - Shows the earliest calibrated pre-reset exhaustion estimate. It needs matching account/window/reset identity and at least three fresh measurements, normally about ten minutes. Missing data is never invented.
 - Click the cat to wake it and open usage. Close the popover and it naps after about two seconds. Manual wake/nap remains an override. Native light/dark mode and Reduce Motion are respected.
 - Optional local input/output token statistics live on a separate Stats view. These are not subscription messages or allowance denominators.
+
+## Opt-in community quota dashboard (source-build feature)
+
+The `dashboard/` web app now targets experimental five-hour and weekly effective-allowance changes, rather than treating quota used as a limit cut. Its signed estimator and optional native Claude Sonnet 4.5 calibration adapter are implemented. Calibration is user-started, runs a bounded public workload that consumes quota, and requires separate consent plus coverage confirmation before upload. Ordinary quota reports cannot populate allowance-change results; native Codex calibration and real-provider validation remain unfinished. See [measurement method, calibration controls and limitations](docs/ALLOWANCE_CHANGES.md). Legacy signed usage cohorts from consenting Relay Cat installations remain available separately. Sharing is off by default and separate from local quota access. Provider credentials stay on the Mac. Small cohorts remain hidden; no demo participants are seeded. Internet discussions are secondary.
+
+This is pseudonymous, client-reported measurement, not provider attestation or a verified count of people. The collector and updated app must be built/configured; no public deployment or retroactive opt-in of existing downloads is included. See [setup, algorithm and privacy](docs/COMMUNITY_SIGNALS.md).
 
 **Message counts:** the current quota feed does not expose exact human messages used or a fixed messages-left allowance. Stats says **Not reported**. Tokens and tool/API requests are not converted into guessed message counts.
 
