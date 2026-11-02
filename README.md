@@ -1,6 +1,6 @@
 # Relay Cat
 
-[![CI](https://github.com/Relay-harness/relay-cat/actions/workflows/ci.yml/badge.svg)](https://github.com/Relay-harness/relay-cat/actions/workflows/ci.yml)
+[![CI](https://github.com/Relay-harness/miso/actions/workflows/ci.yml/badge.svg)](https://github.com/Relay-harness/miso/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 Miso is a small macOS cat that sits on your menu bar to tell you how much of your **subscription quota is used**, **reset times**, and a cautious estimate of **time to the next limit**.
@@ -45,15 +45,15 @@ Quit any older Relay Cat copy, then open **Relay Cat** from Applications. The of
 
 **Homebrew makes installation easier, not Apple-verified. This preview is ad-hoc signed and not notarized.** If macOS blocks the first launch with an unverified-developer warning, review the source/release first. Only if you trust it: try opening the app once, then choose **System Settings → Privacy & Security → Open Anyway**, authenticate if asked, and confirm **Open**. Control-click → Open alone may not work on current macOS. Do not override a malware/“will damage your computer” alert. Never disable Gatekeeper system-wide. The cask does not remove quarantine.
 
-See [Homebrew installation, updates and troubleshooting](docs/HOMEBREW.md), or [download the preview ZIP and checksum](https://github.com/Relay-harness/relay-cat/releases/tag/v1.8.1).
+See [Homebrew installation, updates and troubleshooting](docs/HOMEBREW.md), or [download the preview ZIP and checksum](https://github.com/Relay-harness/miso/releases/tag/v1.8.1).
 
 ## Build from a clean checkout
 
 Requires an Apple Silicon Mac to run the app, Apple Command Line Tools (`xcode-select --install`), and Python 3.9+ (`python3`). No Python packages or package-manager install is needed.
 
 ```sh
-git clone https://github.com/Relay-harness/relay-cat.git
-cd relay-cat
+git clone https://github.com/Relay-harness/miso.git
+cd miso
 python3 Scripts/test.py
 python3 Scripts/build.py
 open "build/Relay Cat.app"

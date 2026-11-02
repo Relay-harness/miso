@@ -6,7 +6,7 @@ Security fixes target the latest public preview/release on the default branch. E
 
 ## Private vulnerability reports
 
-Use [GitHub private vulnerability reporting](https://github.com/Relay-harness/relay-cat/security/advisories/new). Do not open a public issue with credentials, account identifiers, cookies, private conversation content, or an exploitable secret. If GitHub's private report form is unavailable, do not post the sensitive details publicly; use GitHub Support's reporting flow and ask that the repository owner be contacted.
+Use [GitHub private vulnerability reporting](https://github.com/Relay-harness/miso/security/advisories/new). Do not open a public issue with credentials, account identifiers, cookies, private conversation content, or an exploitable secret. If GitHub's private report form is unavailable, do not post the sensitive details publicly; use GitHub Support's reporting flow and ask that the repository owner be contacted.
 
 Describe affected version/OS, impact, reproduction steps with synthetic data, and any proposed mitigation. The maintainer aims to acknowledge reports within seven days, but this volunteer project cannot promise a response or fix deadline. Coordinate disclosure privately; do not test against accounts or systems you do not own or have permission to test.
 

@@ -31,8 +31,8 @@ test('plan/model/context groups stay separate and unavailable selection is not s
  await p.getByRole('button',{name:'Weekly',exact:true}).click();assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'—');await p.close();
 });
 test('minimal connection link opens GitHub, not a provider login or automatic opt-in',async()=>{
- const p=await browser.newPage();await setup(p,{ready:false});const link=p.getByRole('link',{name:'Connect your cat',exact:true});assert.equal(await link.getAttribute('href'),'https://github.com/Relay-harness/relay-cat');assert.equal(await p.locator('.site-header,.brand,.record-mark').count(),0);
- await p.route('https://github.com/Relay-harness/relay-cat',r=>r.fulfill({contentType:'text/html',body:'<h1>Relay Cat</h1>'}));await link.click();await p.waitForURL('https://github.com/Relay-harness/relay-cat');await p.close();
+ const p=await browser.newPage();await setup(p,{ready:false});const link=p.getByRole('link',{name:'Connect your cat',exact:true});assert.equal(await link.getAttribute('href'),'https://github.com/Relay-harness/miso');assert.equal(await p.locator('.site-header,.brand,.record-mark').count(),0);
+ await p.route('https://github.com/Relay-harness/miso',r=>r.fulfill({contentType:'text/html',body:'<h1>Relay Cat</h1>'}));await link.click();await p.waitForURL('https://github.com/Relay-harness/miso');await p.close();
 });
 test('mobile, system theme, feed and collector failures remain usable',async()=>{
  const p=await browser.newPage({viewport:{width:390,height:844},colorScheme:'dark'});const errors=[];p.on('pageerror',e=>errors.push(e.message));await setup(p);await p.locator('.claude .quota-segment.is-filled').first().waitFor();assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));

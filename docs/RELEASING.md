@@ -2,7 +2,7 @@
 
 ## Rename rollout
 
-Before announcing Relay Cat, rename the GitHub repository from `Relay-harness/miso-track` to `Relay-harness/relay-cat` and publish the renamed `relay-cat` cask in the separate Homebrew tap. Build new `RelayCat-<version>-macos-arm64.zip` assets containing `Relay Cat.app`; old release archives still contain the old app name and must not be silently replaced. Update the tap URL, app stanza and checksum for the new release. These external changes are not performed by a local source rename.
+The GitHub repository is `Relay-harness/miso`. This repository rename does not rename the app bundle, release assets, or the `relay-cat` cask in the separate Homebrew tap. Build new `RelayCat-<version>-macos-arm64.zip` assets containing `Relay Cat.app`; old release archives still contain the old app name and must not be silently replaced. Update the tap URL, app stanza and checksum for the new release. These external changes are not performed by a local source rename.
 
 1. Use the maintainer account with repository write permission. Review LICENSE, ThirdParty notices and the pinned reader hash. Never publish local credentials, raw quota output, research downloads, build logs or old app backups.
 2. Update Resources/Info.plist, the About version and CHANGELOG.md. Use a `vMAJOR.MINOR.PATCH` tag matching the public version.
