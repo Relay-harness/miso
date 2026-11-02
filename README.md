@@ -3,7 +3,9 @@
 [![CI](https://github.com/Relay-harness/relay-cat/actions/workflows/ci.yml/badge.svg)](https://github.com/Relay-harness/relay-cat/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-A small native macOS menu-bar companion for checking **subscription quota used**, reset times, and a cautious estimate of time to the next limit. No analytics, keyboard recording, feeding mechanics, or achievements.
+Miso is a small macOS cat that sits on your menu bar to tell you how much of your **subscription quota is used**, **reset times**, and a cautious estimate of **time to the next limit**. 
+
+Miso is made to be quiet and respectful. No analytics, keyboard recording, feeding mechanics, or achievements.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/usage-dark.png">
@@ -15,7 +17,7 @@ A small native macOS menu-bar companion for checking **subscription quota used**
 ## What it does
 
 - OpenAI **Codex** and Claude by default; add Gemini or Grok with **+**.
-- Full-width vertical bars show **percentage used**, not remaining. At 82% used the bar is 82% full.
+- Full-width vertical bars show **percentage used**. At 82% used the bar is 82% full.
 - Shows the earliest calibrated pre-reset exhaustion estimate. It needs matching account/window/reset identity and at least three fresh measurements, normally about ten minutes. Missing data is never invented.
 - Click the cat to wake it and open usage. Close the popover and it naps after about two seconds. Manual wake/nap remains an override. Native light/dark mode and Reduce Motion are respected.
 - Optional local input/output token statistics live on a separate Stats view. These are not subscription messages or allowance denominators.
