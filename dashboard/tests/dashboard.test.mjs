@@ -38,6 +38,19 @@ test('navbar has only the wordmark and a Star on GitHub button',async()=>{
 });
 test('mobile, system theme, feed and collector failures remain usable',async()=>{
  const p=await browser.newPage({viewport:{width:390,height:844},colorScheme:'dark'});const errors=[];p.on('pageerror',e=>errors.push(e.message));await setup(p);await p.locator('.claude .quota-segment.is-filled').first().waitFor();assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'50');assert.equal(await p.locator('.claude .quota-segment.is-filled').count(),20);assert.equal(await p.locator('.claude .provider-sub').innerText(),'−50% this week');assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
- await p.emulateMedia({colorScheme:'light'});await p.waitForFunction(()=>document.documentElement.dataset.theme==='light');await p.screenshot({path:'/tmp/miso-allowance-mobile.png',fullPage:true});await p.setViewportSize({width:1440,height:1050});await p.screenshot({path:'/tmp/miso-allowance-desktop.png',fullPage:true});
+ await p.emulateMedia({colorScheme:'light'});await p.waitForTimeout(200);assert.equal(await p.evaluate(()=>document.documentElement.dataset.theme),'dark');await p.screenshot({path:'/tmp/miso-allowance-mobile.png',fullPage:true});await p.setViewportSize({width:1440,height:1050});await p.screenshot({path:'/tmp/miso-allowance-desktop.png',fullPage:true});
  assert.ok(await p.getByRole('complementary',{name:'Recent internet posts'}).isVisible());await p.unroute('**/api/allowance');await p.route('**/api/allowance',r=>r.fulfill({status:503,json:{error:'offline'}}));await p.reload();await p.getByText('Can’t reach the data right now.',{exact:false}).waitFor();assert.equal(await p.locator('.checkin-row').count(),0);assert.deepEqual(errors,[]);await p.close();
+});
+
+test('one dark theme, two font families, and Miso sleeps on the install command',async()=>{
+ const p=await browser.newPage({viewport:{width:1440,height:1200},colorScheme:'light'});await setup(p);
+ await p.getByRole('heading',{name:'Help make this dashboard more accurate.'}).waitFor();
+ assert.equal(await p.evaluate(()=>document.documentElement.dataset.theme),'dark');
+ const fonts=await p.evaluate(()=>[...new Set([...document.querySelectorAll('body *')].map(e=>getComputedStyle(e).fontFamily.split(',')[0].replaceAll('"','')))]);
+ assert.ok(fonts.length<=3&&fonts.every(f=>['Geist Sans','Geist Mono'].includes(f)),fonts.join());
+ assert.equal(await p.getByText('For folks on macOS',{exact:true}).count(),1);
+ const cat=p.getByRole('img',{name:'Miso the cat, asleep on your terminal'});assert.ok(await cat.isVisible());
+ assert.match(await cat.evaluate(e=>getComputedStyle(e).backgroundImage),/miso-sleeping\.png/);
+ assert.equal(await p.evaluate(()=>/[\u2014\u2013]/.test(document.body.innerText)),false);
+ await p.close();
 });

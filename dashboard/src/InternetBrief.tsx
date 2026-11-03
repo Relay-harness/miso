@@ -1,5 +1,8 @@
 import {useEffect,useState} from 'react';
-import {ArrowUpRight} from '@phosphor-icons/react';
+import {ChatCircle,ArrowFatUp} from '@phosphor-icons/react';
+const HUES=['#c96f56','#6f9c86','#8a7fc4','#c49a4a','#5f8fb4','#b5718f'];
+const hue=(s:string)=>HUES[[...s].reduce((n,c)=>n+c.charCodeAt(0),0)%HUES.length];
+const since=(t:number)=>{const m=Math.max(1,Math.round((Date.now()-t)/60000));return m<60?`${m}m`:m<1440?`${Math.round(m/60)}h`:`${Math.round(m/1440)}d`;};
 import {LIMIT_SEARCHES,limitSearchURL,parseLimitPost,rankLimitPosts} from './limit-posts';
 import type {LimitPost} from './limit-posts';
 export function InternetBrief({onOpen}:{onOpen:()=>void}){
@@ -25,13 +28,12 @@ export function InternetBrief({onOpen}:{onOpen:()=>void}){
   return()=>{active=false;current?.abort();window.clearInterval(timer);};
  },[]);
  return <aside className="internet-brief" aria-label="Recent internet posts">
-  <div className="brief-heading"><h2>Folks that talk</h2><p className="brief-sub">What people are saying about their limits.</p></div>
+  <h2 className="brief-title">What folks are saying</h2>
   <p className={`brief-state${posts.length?' sr-only':''}`} role="status">{state}</p>
-  <ol>{posts.map(p=><li key={p.id}>
-   <a href={`https://news.ycombinator.com/item?id=${p.id}`} target="_blank" rel="noopener noreferrer" title={`${p.title}, by ${p.author} · ${p.reason} · ${p.comments} comments · ${p.points} HN points`}>
-    {p.title.replace(/^(?:Ask|Tell) HN:\s*/i,'')}
-   </a>
-   <div className="brief-meta"><span>{p.comments} comments on HN</span><span aria-hidden="true">·</span><time dateTime={new Date(p.created).toISOString()}>{new Date(p.created).toLocaleDateString([],{month:'short',day:'numeric',...(new Date(p.created).getFullYear()!==new Date().getFullYear()?{year:'numeric' as const}:{})})}</time></div>
+  <ol className="feed">{posts.map(p=><li key={p.id} className="post">
+   <header className="post-head"><span className="avatar" style={{background:hue(p.author)}} aria-hidden="true">{p.author.slice(0,1).toUpperCase()}</span><span className="post-who"><b>{p.author}</b><span>Hacker News · {since(p.created)}</span></span></header>
+   <a href={`https://news.ycombinator.com/item?id=${p.id}`} target="_blank" rel="noopener noreferrer" title={`${p.title}, by ${p.author} · ${p.reason} · ${p.comments} comments · ${p.points} HN points`}>{p.title.replace(/^(?:Ask|Tell) HN:\s*/i,'')}</a>
+   <footer className="brief-meta"><span><ChatCircle size={15} aria-hidden="true"/>{p.comments}<span className="sr-only"> comments</span></span><span><ArrowFatUp size={15} aria-hidden="true"/>{p.points}<span className="sr-only"> points</span></span></footer>
   </li>)}</ol>
   <button className="brief-more" onClick={onOpen}>More reports →</button>
  </aside>;
