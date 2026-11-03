@@ -1,0 +1,25 @@
+# Render Blueprint: the throttleindex.com data server (collector).
+# The web page stays on Vercel; vercel.json forwards /api, /v1 and /health here.
+services:
+  - type: web
+    name: throttleindex-api
+    runtime: docker
+    rootDir: dashboard
+    dockerfilePath: ./Dockerfile
+    plan: starter            # a persistent disk needs a paid plan; free instances lose all reports on restart
+    region: singapore
+    healthCheckPath: /health
+    autoDeploy: true
+    domains:
+      - api.throttleindex.com
+    envVars:
+      - key: MISO_HOST
+        value: 0.0.0.0
+      - key: MISO_DB
+        value: /data/community.sqlite
+      - key: MISO_CLIENT_IP_HEADER
+        value: x-forwarded-for
+    disk:
+      name: reports
+      mountPath: /data
+      sizeGB: 1

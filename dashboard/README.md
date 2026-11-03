@@ -56,7 +56,7 @@ Both the compact rail and Internet signal use `src/limit-posts.ts`. Targeted Hac
 ## Production: throttleindex.com
 
 - **Web page:** Vercel serves the built `dist/` at `https://www.throttleindex.com`. `vercel.json` forwards `/api/*`, `/v1/*` and `/health` to the collector at `https://api.throttleindex.com`, so the page and the Mac app use one address.
-- **Collector:** deploy `dashboard/Dockerfile` (for example on Railway) and attach a persistent volume at `/data`. Without the volume, every redeploy deletes all reports. Point `api.throttleindex.com` at it.
+- **Collector:** deploy with the Render Blueprint in `render.yaml` (or `dashboard/Dockerfile` on any Docker host) and attach a persistent volume at `/data`. Without the volume, every redeploy deletes all reports. Point `api.throttleindex.com` at it.
 - **Environment:** the image sets `MISO_HOST=0.0.0.0`, `MISO_DB=/data/community.sqlite` and `MISO_CLIENT_IP_HEADER=x-real-ip`. The platform sets `PORT`. Rate limiting uses the client address from that header, so only expose the collector behind a proxy that sets it.
 - **Mac app:** new builds fill in `https://www.throttleindex.com` as the server. Sharing and calibration still need the user's separate consent.
 - **Check:** `curl https://www.throttleindex.com/health` returns `{"ok":true}` when everything is connected.
