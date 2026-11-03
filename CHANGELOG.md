@@ -2,6 +2,9 @@
 
 ## Unreleased — allowance dashboard and opt-in calibration
 
+- Redesign the dashboard as throttleindex: blackletter masthead, light-only theme, Geist type, one Claude and one OpenAI allowance bar with runway and live pressure, a live opt-in pressure endpoint (`/api/pulse`), a contributor count and a single install command.
+- Add a one-time, optional contribution invitation after launch, with separate calibration/quota-sharing reviews, a remembered Not now choice, and a manual menu entry. No sharing, identity creation or workload starts from the invitation itself.
+
 - Add separately consented Claude/Codex five-hour and weekly quota sharing, disabled by default.
 - Keep provider authentication local; sign minimal coarse reports with a random Keychain Ed25519 identity.
 - Add a SQLite collector with validation, replay rejection, deduplication, small-cohort suppression, signed deletion and 48-hour retention.

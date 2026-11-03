@@ -24,6 +24,8 @@ Miso is made to be quiet and respectful. No analytics, keyboard recording, feedi
 
 ## Opt-in community quota dashboard (source-build feature)
 
+On the first launch of the updated source build, Miso asks whether you want to help its global dashboard. Choose **Review Claude calibration…**, **Review quota sharing…**, or **Not now**. The invitation is not consent: each contribution path still requires its own full review and confirmation. Declining is remembered; reopen **Data permissions → Contribute to global dashboard…** anytime. No public global collector is configured yet, so participation currently requires your own trusted collector. Existing downloads need a new release to receive this invitation.
+
 The `dashboard/` web app now targets experimental five-hour and weekly effective-allowance changes, rather than treating quota used as a limit cut. Its signed estimator and optional native Claude Sonnet 4.5 calibration adapter are implemented. Calibration is user-started, runs a bounded public workload that consumes quota, and requires separate consent plus coverage confirmation before upload. Ordinary quota reports cannot populate allowance-change results; native Codex calibration and real-provider validation remain unfinished. See [measurement method, calibration controls and limitations](docs/ALLOWANCE_CHANGES.md). Legacy signed usage cohorts from consenting Relay Cat installations remain available separately. Sharing is off by default and separate from local quota access. Provider credentials stay on the Mac. Small cohorts remain hidden; no demo participants are seeded. Internet discussions are secondary.
 
 This is pseudonymous, client-reported measurement, not provider attestation or a verified count of people. The collector and updated app must be built/configured; no public deployment or retroactive opt-in of existing downloads is included. See [setup, algorithm and privacy](docs/COMMUNITY_SIGNALS.md).
@@ -45,7 +47,7 @@ Quit any older Relay Cat copy, then open **Relay Cat** from Applications. The of
 
 **Homebrew makes installation easier, not Apple-verified. This preview is ad-hoc signed and not notarized.** If macOS blocks the first launch with an unverified-developer warning, review the source/release first. Only if you trust it: try opening the app once, then choose **System Settings → Privacy & Security → Open Anyway**, authenticate if asked, and confirm **Open**. Control-click → Open alone may not work on current macOS. Do not override a malware/“will damage your computer” alert. Never disable Gatekeeper system-wide. The cask does not remove quarantine.
 
-See [Homebrew installation, updates and troubleshooting](docs/HOMEBREW.md), or [download the preview ZIP and checksum](https://github.com/Relay-harness/miso/releases/tag/v1.8.1).
+See [Homebrew installation, updates and troubleshooting](docs/HOMEBREW.md), or [download the public v1.8.0 preview ZIP and checksum](https://github.com/Relay-harness/miso/releases/tag/v1.8.0).
 
 ## Build from a clean checkout
 

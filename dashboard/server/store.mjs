@@ -1,5 +1,6 @@
 import {DatabaseSync} from 'node:sqlite';
 import {createHash,createPublicKey,verify} from 'node:crypto';
+import {computePulse} from './pulse.mjs';
 import {authenticateAllowance, aggregateAllowance, ALLOWANCE_RETENTION, AllowanceError} from './allowance.mjs';
 export const STEP=300000, FRESH=600000, RETENTION=2*86400000;
 export const providers=['claude','codex'];
@@ -69,6 +70,7 @@ export class SignalStore{
   } catch(error) {this.db.exec('ROLLBACK');throw error;}
   return {accepted:true,method:'paired-controlled-workload-v1'};
  }
+ pulse(){this.prune();const now=this.clock();return computePulse(this.db.prepare("SELECT install,provider,kind,observed,used,reset FROM observations WHERE kind='five_hour' AND observed >= ?").all(now-RETENTION),now,this.min);}
  aggregateAllowance() {
   this.prune(); const now=this.clock();
   const rows=this.db.prepare('SELECT install,document FROM allowance_intervals WHERE start_at >= ? ORDER BY install,start_at').all(now-ALLOWANCE_RETENTION).map(row=>({install:row.install,...JSON.parse(row.document)}));

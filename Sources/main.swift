@@ -72,6 +72,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         timer = Timer(timeInterval: 0.25, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
         RunLoop.main.add(timer!, forMode: .common)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(tick), name: NSWorkspace.didWakeNotification, object: nil)
+        // After launch, ask once. Test mode returned above and never presents onboarding.
+        DispatchQueue.main.async { [weak self] in self?.offerContributionInvitation() }
     }
 
     @objc private func tick() {
@@ -129,6 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let permissions = NSMenu(title: "Data permissions")
         add(permissions, "Live quota access", #selector(toggleQuotas)).state = quotas.enabled ? .on : .off
         add(permissions, "Local token statistics", #selector(toggleTokenStats)).state = quotas.tokensEnabled ? .on : .off
+        add(permissions, "Contribute to global dashboard…", #selector(reviewDashboardContribution))
         add(permissions, "Share community quota signals…", #selector(toggleCommunitySharing)).state = sharing.enabled ? .on : .off
         add(permissions, "Community sharing details…", #selector(communityDetails))
         add(permissions, calibration.running ? "Stop allowance calibration" : "Run allowance calibration…", #selector(toggleAllowanceCalibration))
@@ -292,6 +295,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         verificationCount += 1
     }
     private func verifyQuotaMenu(_ menu: NSMenu) {
+        self.verifyCondition(ContributionInvitation.shouldOffer(in: settings, alreadyContributing: false), "First updated launch offers contribution without granting consent")
+        let invitation = contributionInvitationAlert()
+        self.verifyCondition(invitation.buttons.map(\.title) == ["Not now", "Review quota sharing…", "Review Claude calibration…"], "Invitation offers separate review paths and a clear decline")
+        self.verifyCondition(invitation.buttons[0].keyEquivalent == "\r" && invitation.buttons.dropFirst().allSatisfy { $0.keyEquivalent.isEmpty }, "Return defaults to Not now, never contribution")
+        self.verifyCondition(invitation.informativeText.contains("not configured") && invitation.informativeText.contains("uses subscription quota"), "Invitation discloses collector availability and workload cost")
+        invitation.layout()
+        if let view = invitation.window.contentView {
+            view.layoutSubtreeIfNeeded()
+            if let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                view.cacheDisplay(in: view.bounds, to: bitmap)
+                try? bitmap.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: "contribution-invitation.png"))
+            }
+        }
+        ContributionInvitation.record(.notNow, in: settings)
+        self.verifyCondition(!ContributionInvitation.shouldOffer(in: settings, alreadyContributing: false), "Declining prevents repeated automatic invitations")
+        self.verifyCondition(!sharing.enabled && !sharing.hasIdentity && !calibration.running && !calibration.transport.hasIdentity && !quotas.enabled, "Invitation rendering and decline do not read accounts, create keys, share, or start a benchmark")
         let measuredPreview = DashboardState.sample(store: quotas)
         measuredPreview.selected = .claude
         self.verifyCondition(measuredPreview.lanes()[0].1?.usedText == "39%", "Quota uses consumed rather than remaining percentage")
@@ -314,7 +333,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let removed = Set(["Disconnect live quotas", "Refresh quotas and tokens", "Stop reading local tokens"])
         self.verifyCondition(menu.items.allSatisfy { !removed.contains($0.title) }, "Redundant top-level actions are gone")
         let permissions = sections[1].last?.submenu
-        self.verifyCondition(permissions?.items.map(\.title) == ["Live quota access", "Local token statistics", "Share community quota signals…", "Community sharing details…", "Run allowance calibration…", "Allowance calibration status…"], "Revocation remains in Data permissions")
+        self.verifyCondition(permissions?.items.map(\.title) == ["Live quota access", "Local token statistics", "Contribute to global dashboard…", "Share community quota signals…", "Community sharing details…", "Run allowance calibration…", "Allowance calibration status…"], "Revocation remains in Data permissions")
         self.verifyCondition(permissions?.items.allSatisfy { $0.state == .off } == true, "Data permissions remain opt-in")
         menu.performActionForItem(at: 0)
         self.verifyCondition(!sleeping && catRest.manuallyAwake, "Manual wake still works")
@@ -550,6 +569,69 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         alert.informativeText = instruction + "\n\nRefresh every five minutes. Values older than ten minutes, reset-expired windows, missing values and failed refreshes never become a fresh 100%. The dashboard updates after each refresh. Provider endpoints can change."
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+
+    private var alreadyContributing: Bool { sharing.enabled || sharing.hasIdentity || calibration.transport.hasIdentity }
+    private func contributionInvitationAlert() -> NSAlert {
+        let alert = NSAlert()
+        alert.messageText = "Help Miso’s global dashboard?"
+        alert.informativeText = "Help people compare Claude and Codex subscription allowances.\n\nClaude calibration runs a fixed workload and uses subscription quota. Basic quota sharing sends coarse usage and reset readings; those alone cannot prove allowance changes.\n\nNothing starts until you review and confirm separately. Contributing is optional.\n\nThe public global collector is not configured yet. Use a trusted collector or choose Not now."
+        // Fail closed: AppKit's default/abort response is the decline action.
+        alert.addButton(withTitle: "Not now")
+        alert.addButton(withTitle: "Review quota sharing…")
+        alert.addButton(withTitle: "Review Claude calibration…")
+        alert.buttons[0].keyEquivalent = "\r"
+        alert.buttons[1].keyEquivalent = ""
+        alert.buttons[2].keyEquivalent = ""
+        return alert
+    }
+    private func runContributionInvitation(_ alert: NSAlert) -> NSApplication.ModalResponse {
+        // AppKit can remap modal abort/keyboard responses. Intercept dismissal keys
+        // only for this synchronous invitation and normalize them to Not now.
+        var declinedByKeyboard = false
+        let monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            if ContributionInvitation.isDismissalKey(event.keyCode) {
+                declinedByKeyboard = true
+                NSApp.stopModal(withCode: .alertFirstButtonReturn)
+                return nil
+            }
+            return event
+        }
+        defer { if let monitor { NSEvent.removeMonitor(monitor) } }
+        let response = alert.runModal()
+        return declinedByKeyboard ? .alertFirstButtonReturn : response
+    }
+    private func offerContributionInvitation() {
+        guard NSApp.modalWindow == nil, !calibration.running else { return }
+        if alreadyContributing {
+            ContributionInvitation.record(.alreadyContributing, in: settings)
+            return
+        }
+        guard ContributionInvitation.shouldOffer(in: settings, alreadyContributing: false) else { return }
+        reviewDashboardContribution()
+    }
+    @objc private func reviewDashboardContribution() {
+        guard !calibration.running else {
+            communityAlert("Calibration is running", "Stop or finish the current calibration before reviewing contribution options.")
+            return
+        }
+        popover.performClose(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        let response = runContributionInvitation(contributionInvitationAlert())
+        let choice: ContributionInvitation.Choice
+        switch response {
+        case .alertThirdButtonReturn: choice = .reviewCalibration
+        case .alertSecondButtonReturn: choice = .reviewQuotaSharing
+        default: choice = .notNow
+        }
+        ContributionInvitation.record(choice, in: settings)
+        // These existing flows still require their full, independent consent and configuration.
+        switch choice {
+        case .reviewCalibration: toggleAllowanceCalibration()
+        case .reviewQuotaSharing:
+            if sharing.enabled { communityDetails() } else { toggleCommunitySharing() }
+        case .notNow, .alreadyContributing: break
+        }
     }
 
     @objc private func toggleCommunitySharing() {

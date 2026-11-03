@@ -4,7 +4,7 @@ try{
  const page=await browser.newPage({viewport:{width:1440,height:1050},colorScheme:'light'});
  await page.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));
  const base=process.env.DASHBOARD_URL||'http://127.0.0.1:8787';
- await page.goto(base);await page.waitForFunction(()=>document.querySelector('[aria-label="Refresh allowance evidence"]')?.disabled===false);
+ await page.goto(base);await page.waitForFunction(()=>!document.querySelector('.status-label')?.textContent.includes('Updating'));
  await page.screenshot({path:'/tmp/miso-allowance-live-desktop.png',fullPage:true});
  await page.goto(`${base}/?demo=1`);await page.locator('.quota-segment.is-filled').first().waitFor();await page.evaluate(()=>document.fonts.ready);
  await page.screenshot({path:'/tmp/miso-allowance-demo-desktop.png',fullPage:true});

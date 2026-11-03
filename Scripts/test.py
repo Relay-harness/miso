@@ -19,7 +19,7 @@ def main():
     reader = ["QuotaModel", "UsageForecast", "ProviderSelection", "QuotaReader"]
     community = ["QuotaModel", "CommunitySharing"]
     calibration = ["QuotaModel", "UsageForecast", "ProviderSelection", "QuotaReader", "CommunitySharing", "AllowanceCalibration", "CalibrationTransport"]
-    for name, files, entry in [("core", core, "Tests/main.swift"), ("reader", reader, "Tests/Reader/main.swift"), ("community", community, "Tests/Community/main.swift"), ("calibration", calibration, "Tests/Calibration/main.swift")]:
+    for name, files, entry in [("core", core, "Tests/main.swift"), ("reader", reader, "Tests/Reader/main.swift"), ("community", community, "Tests/Community/main.swift"), ("calibration", calibration, "Tests/Calibration/main.swift"), ("invitation", ["ContributionInvitation"], "Tests/Invitation/main.swift")]:
         output = tests / name
         run(["xcrun", "swiftc"] + swift_flags() + [ROOT / ("Sources/" + item + ".swift") for item in files] + [ROOT / entry, "-o", output])
         run([output], timeout=30)

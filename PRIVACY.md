@@ -1,5 +1,9 @@
 # Privacy
 
+## Contribution invitation
+
+The updated source app offers a one-time invitation on its first launch to help the global dashboard. **Not now** is the default; Return and Escape decline. The app remembers the invitation version and review/dismissal choice only in local preferences. This is not sharing consent, a provider permission, a signup, or uploaded analytics. Existing contributors are not prompted again. The invitation never creates a signing identity, contacts a collector, reads an account, or starts calibration. Each review path leads to its own existing consent/configuration flow. A declined or cancelled invitation does not enable anything, and cancelling a subsequent review does not cause repeated invitations. Reopen **Data permissions → Contribute to global dashboard…** voluntarily. No public global collector is configured in this build, and already downloaded binaries are not changed remotely.
+
 ## Experimental allowance calibration (separate from native quota sharing)
 
 The web dashboard now estimates changes in effective allowance only from separately consented controlled-workload calibration reports. The current Mac app does **not** automatically collect or upload those reports; its ordinary percentage-used readings and daily local token totals are not valid allowance-change evidence.

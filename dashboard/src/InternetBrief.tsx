@@ -25,14 +25,14 @@ export function InternetBrief({onOpen}:{onOpen:()=>void}){
   return()=>{active=false;current?.abort();window.clearInterval(timer);};
  },[]);
  return <aside className="internet-brief" aria-label="Recent internet posts">
-  <div className="brief-heading"><h2>The conversation</h2></div>
-  <p className="brief-state" role="status">{state}</p>
+  <div className="brief-heading"><h2>Folks that talk</h2><p className="brief-sub">What people are saying about their limits.</p></div>
+  <p className={`brief-state${posts.length?' sr-only':''}`} role="status">{state}</p>
   <ol>{posts.map(p=><li key={p.id}>
-   <a href={`https://news.ycombinator.com/item?id=${p.id}`} target="_blank" rel="noopener noreferrer" title={`${p.title} — by ${p.author} · ${p.reason} · ${p.comments} comments · ${p.points} HN points`}>
-    {p.title.replace(/^(?:Ask|Tell) HN:\s*/i,'')}<ArrowUpRight className="brief-post-arrow" size={12} aria-hidden="true"/>
+   <a href={`https://news.ycombinator.com/item?id=${p.id}`} target="_blank" rel="noopener noreferrer" title={`${p.title}, by ${p.author} · ${p.reason} · ${p.comments} comments · ${p.points} HN points`}>
+    {p.title.replace(/^(?:Ask|Tell) HN:\s*/i,'')}
    </a>
-   <div className="brief-meta"><span>Hacker News</span><span aria-hidden="true">·</span><time dateTime={new Date(p.created).toISOString()}>{new Date(p.created).toLocaleDateString([],{month:'short',day:'numeric',...(new Date(p.created).getFullYear()!==new Date().getFullYear()?{year:'numeric' as const}:{})})}</time></div>
+   <div className="brief-meta"><span>{p.comments} comments on HN</span><span aria-hidden="true">·</span><time dateTime={new Date(p.created).toISOString()}>{new Date(p.created).toLocaleDateString([],{month:'short',day:'numeric',...(new Date(p.created).getFullYear()!==new Date().getFullYear()?{year:'numeric' as const}:{})})}</time></div>
   </li>)}</ol>
-  <button className="brief-more" onClick={onOpen}>Internet signal <ArrowUpRight size={12}/></button>
+  <button className="brief-more" onClick={onOpen}>More reports →</button>
  </aside>;
 }

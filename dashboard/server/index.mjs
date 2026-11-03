@@ -5,13 +5,14 @@ import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {SignalStore,SignalError} from './store.mjs';
 export function createService({path=':memory:',minCohort=5,clock=()=>Date.now(),allowedOrigin='',staticDirectory=null}={}){
- const store=new SignalStore(path,{minCohort,clock});const rates=new Map();let cached=null;let cachedAt=0;let allowanceCached=null;let allowanceCachedAt=0;
+ const store=new SignalStore(path,{minCohort,clock});const rates=new Map();let cached=null;let cachedAt=0;let allowanceCached=null;let allowanceCachedAt=0;let pulseCached=null;let pulseCachedAt=0;
  const server=http.createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');
   const reply=(status,body)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(body));};
   const pathname=req.url?.split('?')[0];
   if(req.method==='GET'&&pathname==='/api/community'){if(!cached||clock()-cachedAt>=15000){cached=store.aggregate();cachedAt=clock();}return reply(200,cached);}
   if(req.method==='GET'&&pathname==='/api/allowance'){if(!allowanceCached||clock()-allowanceCachedAt>=15000){allowanceCached=store.aggregateAllowance();allowanceCachedAt=clock();}return reply(200,allowanceCached);}
+  if(req.method==='GET'&&pathname==='/api/pulse'){if(!pulseCached||clock()-pulseCachedAt>=15000){pulseCached=store.pulse();pulseCachedAt=clock();}return reply(200,pulseCached);}
   if(req.method==='GET'&&pathname==='/health')return reply(200,{ok:true});
   if(req.method==='GET'&&staticDirectory){
    let decoded;try{decoded=decodeURIComponent(pathname);}catch{return reply(400,{error:'Invalid path'});}
@@ -26,7 +27,7 @@ export function createService({path=':memory:',minCohort=5,clock=()=>Date.now(),
   if(req.headers['content-encoding']&&req.headers['content-encoding']!=='identity')return reply(415,{error:'Compression not accepted'});
   const now=clock(),ip=req.socket.remoteAddress||'unknown';for(const [key,v] of rates)if(now-v.start>60000)rates.delete(key);
   if(rates.size>10000)return reply(503,{error:'Temporarily busy'});const rate=rates.get(ip)||{start:now,count:0};rate.count++;rates.set(ip,rate);if(rate.count>600)return reply(429,{error:'Slow down'});
-  const chunks=[];let size=0;try{for await(const chunk of req){size+=chunk.length;if(size>8192){reply(413,{error:'Body too large'});req.destroy();return;}chunks.push(chunk);}const raw=Buffer.concat(chunks).toString('utf8');const signature=req.headers['x-miso-signature'];if(typeof signature!=='string')return reply(401,{error:'Signature required'});const result=req.method==='DELETE'?store.remove(raw,signature):pathname==='/v1/allowance-reports'?store.acceptAllowance(raw,signature):store.accept(raw,signature);if(req.method==='DELETE'){cached=null;allowanceCached=null;}else if(pathname==='/v1/allowance-reports')allowanceCached=null;return reply(req.method==='DELETE'?200:202,result);}catch(error){if(!res.headersSent)reply(error instanceof SignalError?error.status:500,{error:error instanceof SignalError?error.message:'Unable to accept signal'});}
+  const chunks=[];let size=0;try{for await(const chunk of req){size+=chunk.length;if(size>8192){reply(413,{error:'Body too large'});req.destroy();return;}chunks.push(chunk);}const raw=Buffer.concat(chunks).toString('utf8');const signature=req.headers['x-miso-signature'];if(typeof signature!=='string')return reply(401,{error:'Signature required'});const result=req.method==='DELETE'?store.remove(raw,signature):pathname==='/v1/allowance-reports'?store.acceptAllowance(raw,signature):store.accept(raw,signature);if(req.method==='DELETE'){cached=null;allowanceCached=null;pulseCached=null;}else if(pathname==='/v1/reports')pulseCached=null;else if(pathname==='/v1/allowance-reports')allowanceCached=null;return reply(req.method==='DELETE'?200:202,result);}catch(error){if(!res.headersSent)reply(error instanceof SignalError?error.status:500,{error:error instanceof SignalError?error.message:'Unable to accept signal'});}
  });
  const sweep=setInterval(()=>{const now=clock();for(const [key,value] of rates)if(now-value.start>60000)rates.delete(key);},30000);sweep.unref();server.on('close',()=>clearInterval(sweep));
  server.requestTimeout=15000;server.headersTimeout=10000;server.maxHeadersCount=30;
