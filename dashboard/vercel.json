@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://api.throttleindex.com/api/:path*" },
+    { "source": "/v1/:path*", "destination": "https://api.throttleindex.com/v1/:path*" },
+    { "source": "/health", "destination": "https://api.throttleindex.com/health" }
+  ]
+}

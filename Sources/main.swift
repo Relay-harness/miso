@@ -299,7 +299,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let invitation = contributionInvitationAlert()
         self.verifyCondition(invitation.buttons.map(\.title) == ["Not now", "Review quota sharing…", "Review Claude calibration…"], "Invitation offers separate review paths and a clear decline")
         self.verifyCondition(invitation.buttons[0].keyEquivalent == "\r" && invitation.buttons.dropFirst().allSatisfy { $0.keyEquivalent.isEmpty }, "Return defaults to Not now, never contribution")
-        self.verifyCondition(invitation.informativeText.contains("not configured") && invitation.informativeText.contains("uses subscription quota"), "Invitation discloses collector availability and workload cost")
+        self.verifyCondition(invitation.informativeText.contains("throttleindex.com") && invitation.informativeText.contains("uses subscription quota"), "Invitation discloses collector availability and workload cost")
         invitation.layout()
         if let view = invitation.window.contentView {
             view.layoutSubtreeIfNeeded()
@@ -575,7 +575,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     private func contributionInvitationAlert() -> NSAlert {
         let alert = NSAlert()
         alert.messageText = "Help Miso’s global dashboard?"
-        alert.informativeText = "Help people compare Claude and Codex subscription allowances.\n\nClaude calibration runs a fixed workload and uses subscription quota. Basic quota sharing sends coarse usage and reset readings; those alone cannot prove allowance changes.\n\nNothing starts until you review and confirm separately. Contributing is optional.\n\nThe public global collector is not configured yet. Use a trusted collector or choose Not now."
+        alert.informativeText = "Help people compare Claude and Codex subscription allowances.\n\nClaude calibration runs a fixed workload and uses subscription quota. Basic quota sharing sends coarse usage and reset readings; those alone cannot prove allowance changes.\n\nNothing starts until you review and confirm separately. Contributing is optional.\n\nResults appear on throttleindex.com. You can choose Not now."
         // Fail closed: AppKit's default/abort response is the decline action.
         alert.addButton(withTitle: "Not now")
         alert.addButton(withTitle: "Review quota sharing…")
@@ -642,10 +642,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         alert.informativeText = "Off by default. Only fresh Claude/Codex five-hour and weekly quota percentages, rounded DOWN to 5%, plus reset/observation times rounded to five minutes, and your declared plan will be sent about every five minutes.\n\nNo email, account ID, provider token, prompts, files, or token logs are sent. A random signing identity stays in this Mac's Keychain. The server can link your submissions and sees your network address: pseudonymous, not untraceable. Readings expire after 48 hours; public cohorts need at least 5 installations. Signatures do not prove provider truth.\n\nEnter a server you trust. Stop sharing anytime; use Delete my shared readings to remove prior reports. Changing server requires deleting the previous identity first."
         alert.addButton(withTitle: "Agree and share"); alert.addButton(withTitle: "Cancel")
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 390, height: 136))
-        let urlLabel = NSTextField(labelWithString: "Community server (HTTPS; localhost allowed)")
+        let urlLabel = NSTextField(labelWithString: "Server (throttleindex.com by default; change only if you run your own)")
         urlLabel.frame = NSRect(x: 0, y: 113, width: 390, height: 18); view.addSubview(urlLabel)
-        let url = NSTextField(string: sharing.endpoint?.absoluteString ?? "")
-        url.placeholderString = "https://your-community-server.example"
+        let url = NSTextField(string: sharing.endpoint?.absoluteString ?? CommunityPayload.defaultServer)
+        url.placeholderString = CommunityPayload.defaultServer
         url.frame = NSRect(x: 0, y: 82, width: 390, height: 26); view.addSubview(url)
         let claude = NSPopUpButton(frame: NSRect(x: 180, y: 43, width: 210, height: 26)); claude.addItems(withTitles: ["unknown", "pro", "max", "team", "enterprise"])
         let codex = NSPopUpButton(frame: NSRect(x: 180, y: 6, width: 210, height: 26)); codex.addItems(withTitles: ["unknown", "plus", "pro", "team", "enterprise"])
@@ -696,10 +696,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         alert.informativeText = "This is NOT passive tracking. It runs 6 or 12 fixed public sorting tasks using Claude Sonnet 4.5, with tools, MCP, custom hooks and session persistence disabled. It takes roughly 6–15 minutes and CONSUMES YOUR SUBSCRIPTION QUOTA. It may reach a provider limit. A task count is not a token/cost guarantee. No automatic retries or background benchmarks. Stop in Data permissions at any time.\n\nUse the account exclusively for this session: no other Claude Code, browser, desktop or mobile activity. Do not change account, plan or model. Unknown identity/authentication, resets, incomplete task output and insufficient quota movement are rejected. No raw prompts, outputs, files or credentials are uploaded.\n\nOnly after another confirmation: signed, pseudonymous interval quota/task/token/cache counters and declared tier go to your chosen collector for SEVEN DAYS, separately from ordinary quota-sharing consent. A separate Keychain identity links your reports and the collector sees your IP. This estimates effective allowance; it cannot prove official provider limits."
         alert.addButton(withTitle: "Agree and run bounded session"); alert.addButton(withTitle: "Cancel")
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 430, height: 150))
-        let label = NSTextField(labelWithString: "Trusted collector root (HTTPS; localhost for development)")
+        let label = NSTextField(labelWithString: "Server (throttleindex.com by default; change only if you run your own)")
         label.frame = NSRect(x: 0, y: 127, width: 430, height: 18); view.addSubview(label)
-        let url = NSTextField(string: calibration.transport.endpoint?.absoluteString ?? "")
-        url.placeholderString = "https://your-community-server.example"
+        let url = NSTextField(string: calibration.transport.endpoint?.absoluteString ?? CommunityPayload.defaultServer)
+        url.placeholderString = CommunityPayload.defaultServer
         url.frame = NSRect(x: 0, y: 96, width: 430, height: 25); view.addSubview(url)
         let plan = NSPopUpButton(frame: NSRect(x: 0, y: 56, width: 205, height: 26)); plan.addItems(withTitles: ["pro", "max_5x", "max_20x"]); view.addSubview(plan)
         let limit = NSPopUpButton(frame: NSRect(x: 220, y: 56, width: 210, height: 26)); limit.addItems(withTitles: ["6 tasks (lower usage)", "12 tasks (higher usage)"]); view.addSubview(limit)

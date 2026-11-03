@@ -20,6 +20,8 @@ struct CommunityReport: Codable, Sendable {
     let windows: [CommunityWindow]
 }
 enum CommunityPayload {
+    /// Public dashboard. Users can still enter their own collector; nothing is sent without consent.
+    static let defaultServer = "https://www.throttleindex.com"
     static func bucket(_ date: Date) -> Int64 { Int64(floor(date.timeIntervalSince1970 / 300)) * 300_000 }
     static func windows(_ reading: QuotaReading, now: Date) -> [CommunityWindow] {
         guard !reading.stale(at: now), reading.provider == .claude || reading.provider == .codex else { return [] }

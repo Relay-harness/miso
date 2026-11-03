@@ -4,7 +4,7 @@ import {dirname,resolve,extname,sep} from 'node:path';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {SignalStore,SignalError} from './store.mjs';
-export function createService({path=':memory:',minCohort=5,clock=()=>Date.now(),allowedOrigin='',staticDirectory=null}={}){
+export function createService({path=':memory:',minCohort=5,clock=()=>Date.now(),allowedOrigin='',staticDirectory=null,clientIpHeader=''}={}){
  const store=new SignalStore(path,{minCohort,clock});const rates=new Map();let cached=null;let cachedAt=0;let allowanceCached=null;let allowanceCachedAt=0;let pulseCached=null;let pulseCachedAt=0;
  const server=http.createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');
@@ -25,7 +25,7 @@ export function createService({path=':memory:',minCohort=5,clock=()=>Date.now(),
   if(req.headers.origin&&req.headers.origin!==allowedOrigin)return reply(403,{error:'Browser ingestion is disabled'});
   if(req.headers['content-type']?.split(';')[0]!=='application/json')return reply(415,{error:'JSON required'});
   if(req.headers['content-encoding']&&req.headers['content-encoding']!=='identity')return reply(415,{error:'Compression not accepted'});
-  const now=clock(),ip=req.socket.remoteAddress||'unknown';for(const [key,v] of rates)if(now-v.start>60000)rates.delete(key);
+  const forwarded=clientIpHeader&&req.headers[clientIpHeader];const now=clock(),ip=(typeof forwarded==='string'&&forwarded.split(',')[0].trim())||req.socket.remoteAddress||'unknown';for(const [key,v] of rates)if(now-v.start>60000)rates.delete(key);
   if(rates.size>10000)return reply(503,{error:'Temporarily busy'});const rate=rates.get(ip)||{start:now,count:0};rate.count++;rates.set(ip,rate);if(rate.count>600)return reply(429,{error:'Slow down'});
   const chunks=[];let size=0;try{for await(const chunk of req){size+=chunk.length;if(size>8192){reply(413,{error:'Body too large'});req.destroy();return;}chunks.push(chunk);}const raw=Buffer.concat(chunks).toString('utf8');const signature=req.headers['x-miso-signature'];if(typeof signature!=='string')return reply(401,{error:'Signature required'});const result=req.method==='DELETE'?store.remove(raw,signature):pathname==='/v1/allowance-reports'?store.acceptAllowance(raw,signature):store.accept(raw,signature);if(req.method==='DELETE'){cached=null;allowanceCached=null;pulseCached=null;}else if(pathname==='/v1/reports')pulseCached=null;else if(pathname==='/v1/allowance-reports')allowanceCached=null;return reply(req.method==='DELETE'?200:202,result);}catch(error){if(!res.headersSent)reply(error instanceof SignalError?error.status:500,{error:error instanceof SignalError?error.message:'Unable to accept signal'});}
  });
@@ -36,6 +36,6 @@ export function createService({path=':memory:',minCohort=5,clock=()=>Date.now(),
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  process.umask(0o077);
  const path=process.env.MISO_DB||'.data/community.sqlite';mkdirSync(dirname(path),{recursive:true,mode:0o700});const minCohort=Number(process.env.MISO_MIN_COHORT||5);
- const {server,store}=createService({path,minCohort,staticDirectory:resolve(process.env.MISO_STATIC_ROOT||'dist')});const host=process.env.MISO_HOST||'127.0.0.1',port=Number(process.env.MISO_PORT||8787);server.listen(port,host,()=>console.log(`Miso quota collector: http://${host}:${port} (minimum cohort ${minCohort})`));
+ const {server,store}=createService({path,minCohort,staticDirectory:resolve(process.env.MISO_STATIC_ROOT||'dist'),clientIpHeader:(process.env.MISO_CLIENT_IP_HEADER||'').toLowerCase()});const host=process.env.MISO_HOST||'127.0.0.1',port=Number(process.env.PORT||process.env.MISO_PORT||8787);server.listen(port,host,()=>console.log(`Miso quota collector: http://${host}:${port} (minimum cohort ${minCohort})`));
  const maintenance=setInterval(()=>store.prune(),60000);maintenance.unref();for(const sig of ['SIGTERM','SIGINT'])process.on(sig,()=>{clearInterval(maintenance);server.close(()=>{store.close();process.exit(0);});});
 }

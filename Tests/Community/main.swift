@@ -26,6 +26,7 @@ check(identity.publicKey.isValidSignature(signature, for: data), "payload signat
 check(CommunityPayload.endpoint("https://signals.example") != nil, "HTTPS collector allowed")
 check(CommunityPayload.endpoint("http://127.0.0.1:8787") != nil, "loopback HTTP allowed for development")
 for invalid in ["http://signals.example", "https://user:pass@signals.example", "https://signals.example/path", "https://signals.example?secret=x", "file:///tmp/test"] { check(CommunityPayload.endpoint(invalid) == nil, "unsafe endpoint rejected") }
+check(CommunityPayload.endpoint(CommunityPayload.defaultServer) != nil, "default throttleindex.com server is a valid HTTPS root")
 print("\(count) community privacy/encoding checks passed. No account or network access.")
 
 if CommandLine.arguments.contains("--emit-envelope") {
