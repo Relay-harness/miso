@@ -191,7 +191,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Meet Relay Cat"
-        alert.informativeText = "A tiny, original pixel cat for your menu bar.\n\nRelay Cat naps after 90 seconds of inactivity, or during a five-minute focus break.\n\nOptional real subscription quotas use the bundled CodexBar reader and your existing sign-ins. No API-cost estimates are shown as quota. Gemini browser access requires separate consent. No raw quota responses or account emails are saved by Relay Cat.\n\nNo advertising analytics or keyboard recording. Community quota sharing is off by default and requires separate consent. OpenAI and Claude tabs, optional Gemini and Grok, quota pace forecasts and optional local token stats. Version 1.8.1 · Independent of Mac Pet."
+        alert.informativeText = "A tiny, original pixel cat for your menu bar.\n\nRelay Cat naps after 90 seconds of inactivity, or during a five-minute focus break.\n\nOptional real subscription quotas use the bundled CodexBar reader and your existing sign-ins. No API-cost estimates are shown as quota. Gemini browser access requires separate consent. No raw quota responses or account emails are saved by Relay Cat.\n\nNo advertising analytics or keyboard recording. Community quota sharing is off by default and requires separate consent. OpenAI and Claude tabs, optional Gemini and Grok, quota pace forecasts and optional local token stats. Version 1.9.0 · Independent of Mac Pet."
         alert.addButton(withTitle: "Lovely")
         alert.runModal()
     }

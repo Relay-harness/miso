@@ -96,7 +96,7 @@ export function QuotaBoard(){
   <section className="join" aria-label="Add your Mac">
    {sources>0?<p className="join-count"><strong>{sources.toLocaleString()}</strong><span>developers are sourcing these numbers. Add your Mac and make it {(sources+1).toLocaleString()}.</span></p>:<p className="join-count"><span className="join-empty">Be one of the first 10 developers to add a Mac.</span></p>}
    <InstallCommand/>
-   <a className="join-download" href="https://github.com/Relay-harness/miso/releases/download/v1.8.0/Miso-1.8.0-macos-arm64.zip"><DownloadSimple size={15} aria-hidden="true"/>Or download the Mac app</a>
+   <a className="join-download" href="https://github.com/Relay-harness/miso/releases/download/v1.9.0/RelayCat-1.9.0-macos-arm64.zip"><DownloadSimple size={15} aria-hidden="true"/>Or download the Mac app</a>
   </section>
  </section>;
 }

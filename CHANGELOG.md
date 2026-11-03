@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased — allowance dashboard and opt-in calibration
+## 1.9.0 - throttleindex.com community dashboard
+
+- Default community server is https://www.throttleindex.com. Quota sharing and calibration stay off until the user agrees.
 
 - Redesign the dashboard as throttleindex: blackletter masthead, light-only theme, Geist type, one Claude and one OpenAI allowance bar with runway and live pressure, a live opt-in pressure endpoint (`/api/pulse`), a contributor count and a single install command.
 - Add a one-time, optional contribution invitation after launch, with separate calibration/quota-sharing reviews, a remembered Not now choice, and a manual menu entry. No sharing, identity creation or workload starts from the invitation itself.
