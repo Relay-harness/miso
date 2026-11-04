@@ -22,7 +22,7 @@ test('live line and tab title show pressure right now with its direction',async(
 });
 test('stale or empty pulse never shows numbers',async()=>{
  const p=await browser.newPage();const d=createDemoPulse(Date.now()-20*60000);await open(p,d);
- await p.getByText('No data yet. Needs 10 Macs.',{exact:true}).first().waitFor();await p.waitForTimeout(300);assert.equal(await p.locator('.live-bit').count(),0);assert.doesNotMatch(await p.title(),/%/);await p.close();
+ await p.getByText('No live Miso session connected yet.',{exact:true}).first().waitFor();await p.waitForTimeout(300);assert.equal(await p.locator('.live-bit').count(),0);assert.doesNotMatch(await p.title(),/%/);await p.close();
 });
 test('install command can be copied',async()=>{
  const ctx=await browser.newContext({permissions:['clipboard-read','clipboard-write']});const p=await ctx.newPage();await open(p,createDemoPulse(Date.now()));
