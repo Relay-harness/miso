@@ -70,7 +70,7 @@ export function QuotaBoard(){
    <h2 id="miso-title">Help make this dashboard more accurate.</h2>
    <p className="miso-copy">Download Miso. It shows your live session usage on your Mac and warns you before a limit runs out. It also powers this index, with zero prompt tracking.</p>
    <div className="miso-terminal"><span className="sleeping-miso" role="img" aria-label="Miso the cat, asleep on your terminal"/><InstallCommand/></div>
-   <div className="miso-foot">{sources>0?<p className="join-count"><strong>{sources.toLocaleString()}</strong> developers share already. Add yours and make it {(sources+1).toLocaleString()}.</p>:<p className="join-count join-empty">{downloads?<><strong>{downloads.toLocaleString()}</strong> downloads so far. Live numbers appear once 5 Macs share.</>:'Be one of the first 10 developers to add a Mac.'}</p>}</div>
+   <div className="miso-foot">{sources>0?<p className="join-count"><strong>{sources.toLocaleString()}</strong> {sources===1?'developer shares':'developers share'} already. Add yours and make it {(sources+1).toLocaleString()}.</p>:<p className="join-count join-empty">{downloads?<><strong>{downloads.toLocaleString()}</strong> downloads so far. Live numbers appear once 1 Mac shares.</>:'Be one of the first 10 developers to add a Mac.'}</p>}</div>
   </section>
  </section>;
 }

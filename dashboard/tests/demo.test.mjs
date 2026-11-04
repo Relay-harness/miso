@@ -18,6 +18,6 @@ test('before anyone shares, the real download count is shown instead of an empty
  const page=await browser.newPage();await prepare(page,31);await page.goto(url);
  await page.getByText('downloads so far',{exact:false}).waitFor();
  assert.equal(await page.locator('.join-count strong').innerText(),'31');
- assert.match(await page.locator('.join-count').innerText(),/Live numbers appear once 5 Macs share\./);
+ assert.match(await page.locator('.join-count').innerText(),/Live numbers appear once 1 Mac shares\./);
  await page.close();
 });

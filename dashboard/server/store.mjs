@@ -70,7 +70,7 @@ export class SignalStore{
   } catch(error) {this.db.exec('ROLLBACK');throw error;}
   return {accepted:true,method:'paired-controlled-workload-v1'};
  }
- pulse(){this.prune();const now=this.clock();return computePulse(this.db.prepare("SELECT install,provider,kind,observed,used,reset FROM observations WHERE kind='five_hour' AND observed >= ?").all(now-RETENTION),now,this.min);}
+ pulse(){this.prune();const now=this.clock();return computePulse(this.db.prepare("SELECT install,provider,kind,observed,used,reset FROM observations WHERE kind='five_hour' AND observed >= ?").all(now-RETENTION),now,1);}
  aggregateAllowance() {
   this.prune(); const now=this.clock();
   const rows=this.db.prepare('SELECT install,document FROM allowance_intervals WHERE start_at >= ? ORDER BY install,start_at').all(now-ALLOWANCE_RETENTION).map(row=>({install:row.install,...JSON.parse(row.document)}));

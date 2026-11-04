@@ -9,7 +9,7 @@ const url=process.env.DASHBOARD_URL||'http://127.0.0.1:5173';let browser;
 before(async()=>{browser=await chromium.launch({headless:true});});after(async()=>{await browser?.close();});
 test('pulse schema accepts the demo and rejects tiny groups or bad numbers',()=>{
  const d=createDemoPulse(1800000000000);assert.equal(isPulse(d),true);
- for(const mutate of [p=>p.providers.claude.now.installs=3,p=>p.providers.claude.now.atLimit=140,p=>p.providers.codex.buckets.pop(),p=>p.method='quota-used'])
+ for(const mutate of [p=>p.providers.claude.now.installs=0,p=>p.providers.claude.now.atLimit=140,p=>p.providers.codex.buckets.pop(),p=>p.method='quota-used'])
   {const x=structuredClone(d);mutate(x);assert.equal(isPulse(x),false);}
 });
 async function open(page,pulse){await page.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));await page.route('**/api/allowance',r=>r.fulfill({json:{schema:1,method:'paired-controlled-workload-v1',generatedAt:Date.now(),freshnessMinutes:10,minCohort:10,currentDays:1,baselineDays:6,materialChangePercent:15,reportingInstallations:null,cohorts:[],limitations:[]}}));await page.route('**/api/pulse',r=>r.fulfill({json:pulse}));await page.goto(url);}

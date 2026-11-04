@@ -8,8 +8,8 @@ function summarize(rows,min){
  const v=[...latest.values()];if(v.length<min)return null;
  return {installs:v.length,atLimit:Math.round(100*v.filter(r=>r.used>=100).length/v.length),medianUsed:Math.round(median(v.map(r=>r.used)))};
 }
-export function computePulse(rows,now,min=5){
- const minInstalls=Math.max(5,min),end=Math.floor(now/PULSE_BUCKET)*PULSE_BUCKET+PULSE_BUCKET;
+export function computePulse(rows,now,min=1){
+ const minInstalls=Math.max(1,min),end=Math.floor(now/PULSE_BUCKET)*PULSE_BUCKET+PULSE_BUCKET;
  const result={schema:1,method:'opt-in-quota-pressure-v1',generatedAt:now,bucketMinutes:30,minInstalls,providers:{}};
  for(const provider of ['claude','codex']){
   const mine=rows.filter(r=>r.provider===provider&&r.kind==='five_hour'&&r.observed<=now&&r.reset>r.observed&&Number.isFinite(r.used));
