@@ -100,8 +100,6 @@ main.sketch-layout{max-width:var(--wrap);margin:0 auto;padding:var(--s-7) var(--
 .terminal button:hover{color:var(--text);background:var(--raised)}
 .miso-foot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:var(--s-3) var(--s-5);margin-top:var(--s-4);font-size:var(--t-14);color:var(--muted)}
 .join-count strong{color:var(--text);font-variant-numeric:tabular-nums}
-.join-download{display:inline-flex;align-items:center;gap:var(--s-2);color:var(--muted);text-decoration:underline;text-underline-offset:4px;text-decoration-color:var(--line-strong)}
-.join-download:hover{color:var(--text);text-decoration-color:currentColor}
 
 /* ---------- What folks are saying ---------- */
 .internet-brief{position:sticky;top:var(--s-5);min-width:0}
