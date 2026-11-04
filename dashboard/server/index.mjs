@@ -20,6 +20,8 @@ export function createService({path=':memory:',minCohort=5,clock=()=>Date.now(),
  const store=new SignalStore(path,{minCohort,clock});const rates=new Map();let cached=null;let cachedAt=0;let allowanceCached=null;let allowanceCachedAt=0;let pulseCached=null;let pulseCachedAt=0;
  const server=http.createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');
+  // The public dashboard may read aggregate, read-only endpoints directly. Writes never accept browser origins.
+  if(req.method==='GET'&&req.headers.origin==='https://www.throttleindex.com')res.setHeader('Access-Control-Allow-Origin','https://www.throttleindex.com');
   const reply=(status,body)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(body));};
   const pathname=req.url?.split('?')[0];
   if(req.method==='GET'&&pathname==='/api/community'){if(!cached||clock()-cachedAt>=15000){cached=store.aggregate();cachedAt=clock();}return reply(200,cached);}
@@ -31,7 +33,7 @@ export function createService({path=':memory:',minCohort=5,clock=()=>Date.now(),
    let decoded;try{decoded=decodeURIComponent(pathname);}catch{return reply(400,{error:'Invalid path'});}
    const root=resolve(staticDirectory),file=resolve(root,decoded==='/'?'index.html':'.'+decoded);
    const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.woff2':'font/woff2','.woff':'font/woff','.svg':'image/svg+xml','.png':'image/png'};
-   if(file.startsWith(root+sep)&&types[extname(file)])try{const bytes=await readFile(file);res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://hn.algolia.com; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");res.writeHead(200,{'Content-Type':types[extname(file)]});res.end(bytes);return;}catch{}
+   if(file.startsWith(root+sep)&&types[extname(file)])try{const bytes=await readFile(file);res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://api.throttleindex.com https://hn.algolia.com; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");res.writeHead(200,{'Content-Type':types[extname(file)]});res.end(bytes);return;}catch{}
   }
   if(!((['POST','DELETE'].includes(req.method)&&pathname==='/v1/reports')||(req.method==='POST'&&pathname==='/v1/allowance-reports')))return reply(404,{error:'Not found'});
   // Browser writes are not supported. Native clients do not send Origin.

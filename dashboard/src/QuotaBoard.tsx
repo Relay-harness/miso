@@ -13,6 +13,8 @@ const runway=(index:number)=>{const m=Math.round(300*index/100/5)*5;const h=Math
 const delta=(c:AllowanceCohort)=>Math.round((c.index??100)-100);
 const range=(c:AllowanceCohort)=>{const [lo,hi]=c.interval!;const f=(n:number)=>n===0?'0':(n>0?'+':'−')+Math.abs(n);const a=lo-100,b=hi-100;return a===b?f(a)+'%':Math.abs(a)>Math.abs(b)?`${f(b)} to ${f(a)}%`:`${f(a)} to ${f(b)}%`;};
 const INSTALL='brew install --cask relay-harness/tap/relay-cat';
+// Avoid the Vercel rewrite for browser reads; the collector permits this read-only origin.
+const API=window.location.hostname==='www.throttleindex.com'?'https://api.throttleindex.com':'';
 function InstallCommand(){const [copied,setCopied]=useState(false);return <div className="terminal"><code><span className="prompt" aria-hidden="true">$</span>{INSTALL}</code><button type="button" aria-label={copied?'Copied':'Copy'} onClick={async()=>{try{await navigator.clipboard.writeText(INSTALL);setCopied(true);window.setTimeout(()=>setCopied(false),1600);}catch{}}}>{copied?<Check size={16} weight="bold" aria-hidden="true"/>:<Copy size={16} aria-hidden="true"/>}<span>{copied?'Copied':'Copy'}</span></button></div>;}
 const key=(c:AllowanceCohort)=>[c.plan,c.model,c.contextBand,c.protocol].join(':');
 const groupLabel=(c:AllowanceCohort)=>`${c.plan.replaceAll('_',' ')} · ${c.model} · ${c.contextBand} context`;
@@ -23,8 +25,8 @@ export function QuotaBoard(){
  const controller=useRef<AbortController|null>(null);
  const [pulse,setPulse]=useState<Pulse|null>(null);
  const [downloads,setDownloads]=useState<number|null>(null);
- useEffect(()=>{if(demo)return;let active=true;fetch('/api/downloads',{credentials:'omit'}).then(r=>r.ok?r.json():null).then(v=>{if(active&&v&&Number.isSafeInteger(v.total)&&v.total>0)setDownloads(v.total);}).catch(()=>{});return()=>{active=false;};},[demo]);
- useEffect(()=>{let active=true;async function load(){if(demo){setPulse(createDemoPulse());return;}try{const r=await fetch('/api/pulse',{credentials:'omit',cache:'no-store'});if(!r.ok)throw new Error();const v:unknown=await r.json();if(active)setPulse(isPulse(v)?v:null);}catch{if(active)setPulse(null);}}void load();const t=window.setInterval(()=>{if(document.visibilityState==='visible')void load();},30000);return()=>{active=false;window.clearInterval(t);};},[demo,attempt]);
+ useEffect(()=>{if(demo)return;let active=true;fetch(API+'/api/downloads',{credentials:'omit'}).then(r=>r.ok?r.json():null).then(v=>{if(active&&v&&Number.isSafeInteger(v.total)&&v.total>0)setDownloads(v.total);}).catch(()=>{});return()=>{active=false;};},[demo]);
+ useEffect(()=>{let active=true;async function load(){if(demo){setPulse(createDemoPulse());return;}try{const r=await fetch(API+'/api/pulse',{credentials:'omit',cache:'no-store'});if(!r.ok)throw new Error();const v:unknown=await r.json();if(active)setPulse(isPulse(v)?v:null);}catch{if(active)setPulse(null);}}void load();const t=window.setInterval(()=>{if(document.visibilityState==='visible')void load();},30000);return()=>{active=false;window.clearInterval(t);};},[demo,attempt]);
  const livePulse=pulse&&Date.now()-pulse.generatedAt<15*60000?pulse:null;
  useEffect(()=>{const c=livePulse?.providers.claude.now,pr=livePulse?.providers.claude.previous;document.title=c?`${pr?(c.atLimit>pr.atLimit?'↑':c.atLimit<pr.atLimit?'↓':'='):''} Claude ${c.atLimit}% at limit · throttleindex`:'throttleindex · are the limits shrinking?';},[livePulse]);
  useEffect(()=>{
@@ -32,7 +34,7 @@ export function QuotaBoard(){
   async function load(){
    if(demo){if(active){setData(createDemoAllowance());setError(false);setNow(Date.now());setLoading(false);}return;}
    controller.current?.abort();const c=new AbortController();controller.current=c;const timeout=window.setTimeout(()=>c.abort(),10000);setLoading(true);
-   try{const response=await fetch('/api/allowance',{signal:c.signal,credentials:'omit',cache:'no-store'});if(!response.ok)throw new Error();const value:unknown=await response.json();if(!isAllowanceCommunity(value))throw new Error();if(active){setData(value);setError(false);setNow(Date.now());}}
+   try{const response=await fetch(API+'/api/allowance',{signal:c.signal,credentials:'omit',cache:'no-store'});if(!response.ok)throw new Error();const value:unknown=await response.json();if(!isAllowanceCommunity(value))throw new Error();if(active){setData(value);setError(false);setNow(Date.now());}}
    catch{if(active)setError(true);}finally{window.clearTimeout(timeout);if(active)setLoading(false);}
   }
   void load();const interval=window.setInterval(()=>{setNow(Date.now());if(document.visibilityState==='visible')void load();},60000);
