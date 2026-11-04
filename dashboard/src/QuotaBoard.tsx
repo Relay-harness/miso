@@ -56,7 +56,7 @@ export function QuotaBoard(){
    const live=livePulse?.providers[provider]??null;
    // A live reading is the useful first signal: with one Mac, this is that Mac's rounded usage.
    // The slower allowance comparison stays labelled and only replaces it once its cohort is ready.
-   const showingLive=!!live?.now;
+   const showingLive=!demo&&!!live?.now;
    const ready=showingLive||allowanceReady;
    const index=showingLive?live!.now!.medianUsed:(allowanceReady?cohort!.index:null);
    const filled=index===null?0:Math.min(40,Math.round(index/2.5));
