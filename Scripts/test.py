@@ -15,7 +15,7 @@ def main():
     run([sys.executable, ROOT / "Scripts/check_source.py"])
     tests = BUILD / "tests"
     tests.mkdir(parents=True, exist_ok=True)
-    core = ["FocusClock", "QuotaModel", "UsageForecast", "DashboardLayout", "ProviderSelection"]
+    core = ["FocusClock", "QuotaModel", "UsageForecast", "DashboardLayout", "ProviderSelection", "UpdateChecker"]
     reader = ["QuotaModel", "UsageForecast", "ProviderSelection", "QuotaReader"]
     community = ["QuotaModel", "CommunitySharing"]
     calibration = ["QuotaModel", "UsageForecast", "ProviderSelection", "QuotaReader", "CommunitySharing", "AllowanceCalibration", "CalibrationTransport"]

@@ -277,3 +277,7 @@ check(displayWindow(10000).usedText == "999%+", "extreme provider percentages ca
 check(displayWindow(.nan).usedText == "—" && displayWindow(.nan).usedFraction == 0, "invalid internal values never become numeric usage")
 check(displayWindow(-1).usedText == "—" && displayWindow(-1).usedFraction == 0, "negative internal usage cannot draw a negative bar")
 print("\(checks) used-quota core checks passed")
+
+check(MisoUpdateChecker.newer("1.9.1", than: "1.9.0"), "newer Miso release is detected")
+check(MisoUpdateChecker.newer("v1.10.0", than: "1.9.9"), "version components compare numerically")
+check(!MisoUpdateChecker.newer("1.9.1", than: "1.9.1"), "current Miso release does not prompt")

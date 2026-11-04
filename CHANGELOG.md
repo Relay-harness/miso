@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.2 - Update and provider activity
+
+- Older Miso versions check the published GitHub release at launch and offer an explicit **Update Miso** button. No update installs automatically.
+- Add **Check for updates…** to the menu.
+- Quota checks and community uploads run only while a `claude`, `codex`, Claude, or Codex process is active. Miso stays in the menu bar and waits when neither is running.
+
 ## 1.9.1 - Miso name, no popup
 
 - Rename the app to Miso (`Miso.app`). Settings, sign-ins and sharing identities carry over.

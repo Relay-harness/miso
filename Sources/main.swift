@@ -36,6 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     private var interactionReaderDone = false
     private var interactionHeartbeat = false
     private var message: String?
+    private let activity = ProviderActivityMonitor()
+    private var availableUpdate: MisoUpdate?
     private var messageUntil = Date.distantPast
     private var palette: Int { settings.integer(forKey: "palette") }
     private var animate: Bool { settings.object(forKey: "animate") as? Bool ?? true }
@@ -62,6 +64,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             self?.dashboard.sync()
         }
         quotas.onFreshReading = { [weak self] reading in self?.sharing.submit(reading) }
+        activity.refreshIfDue(interval: 0) { [weak self] active in self?.quotas.setProviderActive(active) }
+        MisoUpdateChecker.check { [weak self] update in self?.showUpdateIfNeeded(update) }
         quotas.refreshIfDue()
         update()
         if CommandLine.arguments.contains("--verify-quota-menu") {
@@ -88,6 +92,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             if sound { NSSound(named: NSSound.Name("Glass"))?.play() }
         }
         frame = (frame + 1) % 8
+        activity.refreshIfDue { [weak self] active in self?.quotas.setProviderActive(active) }
         quotas.refreshIfDue()
         update()
     }
@@ -104,7 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
         let focusText = clock.isRunning ? " " + (clock.isPaused ? "Ⅱ " : "") + clock.label(at: now) : ""
         status.button?.title = focusText + quotas.barText(at: now)
-        let mood = asleep ? "sleeping" : "keeping you company"
+        let mood = asleep ? "sleeping" : (!activity.active && quotas.enabled ? "waiting for Claude or Codex" : "keeping you company")
         let description = "Miso is \(mood)" + (clock.isRunning ? " · \(clock.phase == .focus ? "Focus" : "Break") \(clock.label(at: now))" : "")
         status.button?.toolTip = now < messageUntil ? message : description
         status.button?.setAccessibilityLabel(description + (quotas.enabled ? " · " + quotas.displayedProvider.name + " " + quotas.headline(quotas.displayedProvider) : ""))
@@ -165,6 +170,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let help = add(menu, "Selected provider sign-in help…", #selector(quotaSignInHelp(_:)))
         help.representedObject = dashboard.selected.rawValue
         menu.addItem(.separator())
+        if let availableUpdate { let item=add(menu, "Update to Miso \(availableUpdate.version)…", #selector(openUpdate)); item.representedObject=availableUpdate.page }
+        add(menu, "Check for updates…", #selector(checkForUpdates))
         add(menu, "About Miso…", #selector(about))
         add(menu, "Quit Miso", #selector(quit), key: "q")
     }
@@ -185,6 +192,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     @objc private func setPalette(_ sender: NSMenuItem) { settings.set(sender.tag, forKey: "palette"); update() }
     @objc private func toggleAnimation() { settings.set(!animate, forKey: "animate"); update() }
     @objc private func toggleSound() { settings.set(!sound, forKey: "sound") }
+    @objc private func checkForUpdates() { MisoUpdateChecker.check { [weak self] update in
+        guard let self else { return }; self.availableUpdate=update
+        if let update { self.showUpdateAlert(update) }
+        else { self.communityAlert("Miso is up to date", "You have the latest released version.") }
+    } }
+    @objc private func openUpdate(_ sender: NSMenuItem) { if let url=sender.representedObject as? URL { NSWorkspace.shared.open(url) } }
+    private func showUpdateIfNeeded(_ update: MisoUpdate?) { availableUpdate=update; if let update { showUpdateAlert(update) } }
+    private func showUpdateAlert(_ update: MisoUpdate) {
+        guard NSApp.modalWindow == nil else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        let alert=NSAlert(); alert.messageText="Miso \(update.version) is available"
+        alert.informativeText="You are using an older version. Update to get the latest fixes and connection improvements."
+        alert.addButton(withTitle:"Update Miso"); alert.addButton(withTitle:"Later")
+        if alert.runModal() == .alertFirstButtonReturn { NSWorkspace.shared.open(update.page) }
+    }
     @objc private func about() {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
@@ -327,7 +349,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         self.verifyCondition(sections.count == 5, "Settings have five concise sections")
         self.verifyCondition(sections[1].first?.title == "Show quota beside cat", "Quota display is in the second section")
         self.verifyCondition(sections[3].map(\.title) == ["Open selected provider usage page…", "Selected provider sign-in help…"], "Provider links are the penultimate section")
-        self.verifyCondition(sections[4].map(\.title) == ["About Miso…", "Quit Miso"], "About and Quit stay last")
+        self.verifyCondition(sections[4].map(\.title) == ["Check for updates…", "About Miso…", "Quit Miso"], "Update check, About and Quit stay last")
         let removed = Set(["Disconnect live quotas", "Refresh quotas and tokens", "Stop reading local tokens"])
         self.verifyCondition(menu.items.allSatisfy { !removed.contains($0.title) }, "Redundant top-level actions are gone")
         let permissions = sections[1].last?.submenu

@@ -104,6 +104,7 @@ final class QuotaStore {
     var onChange: (() -> Void)?
     var onFreshReading: ((QuotaReading) -> Void)?
     private var generation = 0
+    private(set) var providerActive = false
     private var lastAttempt = Date.distantPast
     var enabled: Bool { defaults.bool(forKey: "realQuotasEnabled") }
     var geminiBrowserAllowed: Bool { defaults.bool(forKey: "geminiBrowserAllowed") }
@@ -117,6 +118,13 @@ final class QuotaStore {
     var showInBar: Bool { defaults.object(forKey: "showQuotaInBar") as? Bool ?? true }
 
     init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+    func setProviderActive(_ active: Bool) {
+        guard providerActive != active else { return }
+        providerActive = active; generation += 1
+        if !active { readings.removeAll(); problems.removeAll(); history.clear() }
+        lastAttempt = .distantPast; onChange?()
+        if active && enabled { refresh() }
+    }
     func setEnabled(_ value: Bool) {
         generation += 1
         defaults.set(value, forKey: "realQuotasEnabled")
@@ -124,7 +132,7 @@ final class QuotaStore {
         lastAttempt = .distantPast
         readings.removeAll(); problems.removeAll(); history.clear()
         onChange?()
-        if value { refresh() }
+        if value && providerActive { refresh() }
     }
     func setDisplayed(_ provider: QuotaProvider) {
         guard visibleProviders.contains(provider) else { return }
@@ -143,7 +151,7 @@ final class QuotaStore {
         defaults.set(displayedProvider.rawValue, forKey: "quotaInBar")
         lastAttempt = .distantPast
         onChange?()
-        if enabled { refresh() }
+        if enabled && providerActive { refresh() }
     }
     func toggleInBar() { defaults.set(!showInBar, forKey: "showQuotaInBar"); onChange?() }
     func revokeGemini() {
@@ -154,7 +162,7 @@ final class QuotaStore {
         onChange?()
     }
     func refreshIfDue() {
-        if enabled && Date().timeIntervalSince(lastAttempt) >= 300 { refresh() }
+        if enabled && providerActive && Date().timeIntervalSince(lastAttempt) >= 300 { refresh() }
         if tokensEnabled && Date().timeIntervalSince(lastTokenAttempt) >= 300 { refreshTokens() }
     }
     func forecast(_ provider: QuotaProvider, window: QuotaWindow, now: Date) -> QuotaForecast? {
@@ -231,7 +239,7 @@ final class QuotaStore {
             allowBrowserCookies: provider == .gemini && geminiBrowserAllowed)
     }
     func refresh() {
-        guard enabled, !refreshing, !connectingBrowser else { return }
+        guard enabled, providerActive, !refreshing, !connectingBrowser else { return }
         let locations: (URL, URL, URL)
         do { locations = try self.locations() }
         catch { for p in QuotaProvider.allCases { problems[p] = "Quota reader is unavailable. Reinstall Miso." }; onChange?(); return }

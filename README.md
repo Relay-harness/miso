@@ -24,6 +24,8 @@ Miso is made to be quiet and respectful. No analytics, keyboard recording, feedi
 
 ## Opt-in community quota dashboard (source-build feature)
 
+Miso checks for a newer published release at launch and offers an explicit **Update Miso** button. It never downloads or installs an update by itself. Homebrew users update with `brew upgrade --cask relay-harness/tap/relay-cat`.
+
 When you click **Enable live quotas**, Miso also shares rounded five-hour and weekly usage percentages with [throttleindex.com](https://www.throttleindex.com). The dialog says so, and there is no separate popup. Turn sharing off or delete shared readings in **Data permissions**. Allowance calibration is optional and always user-started, because it uses subscription quota.
 
 The `dashboard/` web app now targets experimental five-hour and weekly effective-allowance changes, rather than treating quota used as a limit cut. Its signed estimator and optional native Claude Sonnet 4.5 calibration adapter are implemented. Calibration is user-started, runs a bounded public workload that consumes quota, and requires separate consent plus coverage confirmation before upload. Ordinary quota reports cannot populate allowance-change results; native Codex calibration and real-provider validation remain unfinished. See [measurement method, calibration controls and limitations](docs/ALLOWANCE_CHANGES.md). Legacy signed usage cohorts from consenting Relay Cat installations remain available separately. Sharing is off by default and separate from local quota access. Provider credentials stay on the Mac. Small cohorts remain hidden; no demo participants are seeded. Internet discussions are secondary.
@@ -47,7 +49,7 @@ Quit any older Relay Cat copy, then open **Miso** from Applications. The officia
 
 **Homebrew makes installation easier, not Apple-verified. This preview is ad-hoc signed and not notarized.** If macOS blocks the first launch with an unverified-developer warning, review the source/release first. Only if you trust it: try opening the app once, then choose **System Settings → Privacy & Security → Open Anyway**, authenticate if asked, and confirm **Open**. Control-click → Open alone may not work on current macOS. Do not override a malware/“will damage your computer” alert. Never disable Gatekeeper system-wide. The cask does not remove quarantine.
 
-See [Homebrew installation, updates and troubleshooting](docs/HOMEBREW.md), or [download the v1.9.1 preview ZIP and checksum](https://github.com/Relay-harness/miso/releases/tag/v1.9.1).
+See [Homebrew installation, updates and troubleshooting](docs/HOMEBREW.md), or [download the v1.9.2 ZIP and checksum](https://github.com/Relay-harness/miso/releases/tag/v1.9.2).
 
 ## Build from a clean checkout
 
