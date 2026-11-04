@@ -46,24 +46,28 @@ export function QuotaBoard(){
  return <section className="quota-board minimal-quota allowance-board clean" aria-label="Claude and Codex limits">
   {demo&&<aside className="demo-notice" aria-label="Demo data notice"><span>Demo · made-up numbers</span><a href={window.location.pathname}>Exit demo</a></aside>}
   <h1 className="headline">did they just nerf the limits? again!?</h1>
-  {(error||stale)&&<div className="collector-notice" role="status"><Info size={13}/><span>{stale?'Data is stale. Hidden until it updates.':'Can’t reach the data right now.'} <button onClick={()=>setAttempt(v=>v+1)}>Retry</button></span></div>}
+  {(error||stale)&&!livePulse?.providers.claude.now&&!livePulse?.providers.codex.now&&<div className="collector-notice" role="status"><Info size={13}/><span>{stale?'Data is stale. Hidden until it updates.':'Can’t reach the data right now.'} <button onClick={()=>setAttempt(v=>v+1)}>Retry</button></span></div>}
   <div className="provider-stack">{(['claude','codex'] as const).map(provider=>{
    const kind='five_hour';
    const groups=available?data.cohorts.filter(c=>c.provider===provider&&c.kind===kind):[];
    const selected=selection[provider]||(groups[0]?key(groups[0]):'');
    const cohort=groups.find(c=>key(c)===selected);
-   const ready=!!cohort&&cohort.status!=='insufficient'&&cohort.index!==null;
-   const index=ready?cohort.index:null;
-   const filled=index===null?0:Math.min(40,Math.round(index/2.5));
-   const tone=ready?cohort.status:'insufficient';
+   const allowanceReady=!!cohort&&cohort.status!=='insufficient'&&cohort.index!==null;
    const live=livePulse?.providers[provider]??null;
+   // A live reading is the useful first signal: with one Mac, this is that Mac's rounded usage.
+   // The slower allowance comparison stays labelled and only replaces it once its cohort is ready.
+   const showingLive=!!live?.now;
+   const ready=showingLive||allowanceReady;
+   const index=showingLive?live!.now!.medianUsed:(allowanceReady?cohort!.index:null);
+   const filled=index===null?0:Math.min(40,Math.round(index/2.5));
+   const tone=allowanceReady?cohort!.status:'insufficient';
    const d=live?.now&&live.previous?live.now.atLimit-live.previous.atLimit:null;
    return <article key={provider} className={`quota-gauge provider-row ${provider} ${kind} ${tone==='decreased'?'allowance-decreased':''}`} aria-label={`${provider==='claude'?'Claude':'OpenAI'} five-hour allowance`}>
-    <div className="provider-line"><h2>{provider==='claude'?<img className="provider-mark" src="/claude-ai-logo.png" width={22} height={22} alt="" aria-hidden="true"/>:<OpenAiLogo className="provider-mark" size={22} aria-hidden="true"/>}{provider==='claude'?'Claude':'OpenAI'}{ready&&delta(cohort)!==0&&<span className={`provider-sub tone-${tone}`}>{`${delta(cohort)>0?'+':'−'}${Math.abs(delta(cohort))}% this week`}</span>}</h2><div className="gauge-number"><strong>{index===null?'-':index}</strong>{index!==null&&<span>%</span>}</div></div>
-    <div className="provider-reading"><div className={`pressure-track segmented-track ${ready?'':'no-readings'}`} role="img" title={ready&&cohort.interval?`Likely ${range(cohort)} · ${cohort.contributors} ${plan(cohort.plan)} users on ${model(cohort.model)} · updated ${ago(cohort.latestAt!)}`:undefined} aria-label={index===null?'No data yet':`${index}% of last week's 5-hour allowance. A full bar means no change.`}>
+    <div className="provider-line"><h2>{provider==='claude'?<img className="provider-mark" src="/claude-ai-logo.png" width={22} height={22} alt="" aria-hidden="true"/>:<OpenAiLogo className="provider-mark" size={22} aria-hidden="true"/>}{provider==='claude'?'Claude':'OpenAI'}{allowanceReady&&delta(cohort!)!==0&&<span className={`provider-sub tone-${tone}`}>{`${delta(cohort!)>0?'+':'−'}${Math.abs(delta(cohort!))}% this week`}</span>}</h2><div className="gauge-number"><strong>{index===null?'-':index}</strong>{index!==null&&<span>%</span>}</div></div>
+    <div className="provider-reading"><div className={`pressure-track segmented-track ${ready?'':'no-readings'}`} role="img" title={showingLive?`Live rounded five-hour usage from ${live!.now!.installs} connected ${live!.now!.installs===1?'Mac':'Macs'}`:allowanceReady&&cohort!.interval?`Likely ${range(cohort!)} · ${cohort!.contributors} ${plan(cohort!.plan)} users on ${model(cohort!.model)} · updated ${ago(cohort!.latestAt!)}`:undefined} aria-label={index===null?'No data yet':showingLive?`${index}% used in the current five-hour window.`:`${index}% of last week's 5-hour allowance. A full bar means no change.`}>
      {Array.from({length:40},(_,i)=><i key={i} aria-hidden="true" className={`quota-segment ${i<filled?'is-filled':ready&&tone==='decreased'?'is-lost':''}`}/>)}
     </div></div>
-    <p className={`one-line tone-${tone}`}>{loading&&!data?'Checking…':ready?<span>Your 5-hour window now lasts <b>~{runway(index!)}</b></span>:'No data yet. Needs 10 Macs.'}{live?.now&&<span className="live-bit"><i className="live-dot" aria-hidden="true"/><span>{live.now.atLimit}% hitting the limit now{d!==null&&d!==0&&<em className={d>0?'worse':'better'}>{d>0?' ↑':' ↓'}</em>}</span></span>}</p>
+    <p className={`one-line tone-${tone}`}>{loading&&!data&&!showingLive?'Checking…':showingLive?<span>Live 5-hour usage: <b>{index}% used</b> · {live!.now!.installs} connected {live!.now!.installs===1?'Mac':'Macs'}</span>:allowanceReady?<span>Your 5-hour window now lasts <b>~{runway(index!)}</b></span>:'No data yet. Needs 10 Macs.'}{live?.now&&<span className="live-bit"><i className="live-dot" aria-hidden="true"/><span>{live.now.atLimit}% hitting the limit now{d!==null&&d!==0&&<em className={d>0?'worse':'better'}>{d>0?' ↑':' ↓'}</em>}</span></span>}</p>
     {groups.length>1&&<label className="evidence-group"><span className="sr-only">{provider==='claude'?'Claude':'OpenAI'} group</span><select aria-label={`${provider==='claude'?'Claude':'OpenAI'} evidence group`} value={cohort?key(cohort):''} onChange={event=>setSelection(previous=>({...previous,[provider]:event.target.value}))}>{!cohort&&<option value="" disabled>Select a group</option>}{groups.map(c=><option key={key(c)} value={key(c)}>{groupLabel(c)}</option>)}</select></label>}
    </article>;
   })}</div>
