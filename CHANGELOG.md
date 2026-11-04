@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.9.4 - Reporting reliability and truthful connection status
+
+- Show inline website state and per-provider last server acknowledgement in Connection details, with running version/path and duplicate app-copy diagnostics.
+- Preserve revoked sharing on reconnect/update. Report connection errors instead of swallowing them.
+- Scope quota and token workers to the active provider; cancel owned helper processes on pause/revoke/sleep/quit. Add explicit optional Open at login.
+- Send native reports directly to the collector, retry transient failures while data is fresh, and accept identical signed retry data idempotently without inflating counts.
+- Preserve accessible legacy signing identities without a password prompt. Fail safely on blocked/corrupt storage and offer explicit legacy-report recovery/deletion.
+- Exclude reset-expired reports, show distinct recent reporting installations instead of claiming online Macs, and preserve recent live data during short API failures.
+- Make update checks distinguish errors from “up to date”; offer Copy Homebrew update command or View release, not a fake automatic installer.
+- Developer ID/notarization and a signed automatic installer remain pending. Provider access can still require explicit system approval. No permission is bypassed.
+
 ## 1.9.3 - No Keychain prompt for quota sharing
 
 - Community quota sharing now stores its random pseudonymous signing key in an owner-only local app-support file instead of Keychain. Enabling live quotas does not request a Keychain password.

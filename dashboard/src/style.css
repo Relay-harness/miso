@@ -192,3 +192,6 @@ main.sketch-layout{max-width:var(--wrap);margin:0 auto;padding:var(--s-7) var(--
 }
 @media(max-width:380px){.star-text{display:none}}
 @media(prefers-reduced-motion:reduce){.live-dot,.sleeping-miso{animation:none}.post,.post:hover{transform:none;transition:none}html{scroll-behavior:auto}}
+
+/* Historical quota is visibly distinct from a fresh report. */
+.pressure-track.last-known .quota-segment.is-filled{opacity:.4}

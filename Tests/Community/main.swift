@@ -34,3 +34,25 @@ if CommandLine.arguments.contains("--emit-envelope") {
     let encoded = try JSONSerialization.data(withJSONObject: envelope, options: [.sortedKeys])
     print("ENVELOPE:" + String(data: encoded, encoding: .utf8)!)
 }
+
+// Storage tests use a temporary file and injected legacy lookup, never real Keychain.
+let identityDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("miso-identity-tests-" + UUID().uuidString)
+defer { try? FileManager.default.removeItem(at: identityDirectory) }
+let storage = CommunityIdentityStore(file: identityDirectory.appendingPathComponent("report.key"), legacy: { nil })
+let firstKey = try storage.load(create: true)
+let loadedKey = try storage.load(create: false)
+check(loadedKey.publicKey.rawRepresentation == firstKey.publicKey.rawRepresentation, "identity persists across loads without rotation")
+let mode = try FileManager.default.attributesOfItem(atPath: storage.file.path)[.posixPermissions] as! NSNumber
+check(mode.intValue & 0o777 == 0o600, "identity file is owner-only at creation")
+let oldKey = Curve25519.Signing.PrivateKey()
+let migrated = CommunityIdentityStore(file: identityDirectory.appendingPathComponent("migrated.key"), legacy: { oldKey.rawRepresentation })
+let migratedKey = try migrated.load(create: true)
+check(migratedKey.publicKey.rawRepresentation == oldKey.publicKey.rawRepresentation, "noninteractive legacy migration preserves public key and deletion continuity")
+let blocked = CommunityIdentityStore(file: identityDirectory.appendingPathComponent("blocked.key"), legacy: { throw CocoaError(.fileReadNoPermission) })
+do { _ = try blocked.load(create: true); fatalError("blocked migration must fail without rotation") } catch { check(!FileManager.default.fileExists(atPath: blocked.file.path), "unavailable legacy identity never silently rotates") }
+try Data([1,2,3]).write(to: storage.file)
+do { _ = try storage.load(create: true); fatalError("corrupt identity must not rotate") } catch { let corruptBytes = try Data(contentsOf: storage.file); check(corruptBytes.count == 3, "corrupt key is preserved for recovery, not overwritten") }
+let linked = identityDirectory.appendingPathComponent("linked.key")
+try FileManager.default.createSymbolicLink(at: linked, withDestinationURL: migrated.file)
+do { _ = try CommunityIdentityStore(file: linked, legacy: { nil }).load(create: true); fatalError("symlink must be rejected") } catch { check(true, "identity refuses symlink storage") }
+print("\(count) community payload/storage checks passed. No Keychain or network access.")

@@ -9,15 +9,15 @@ Install [Homebrew](https://brew.sh/) first if needed. Relay Cat currently needs 
 brew install --cask relay-harness/tap/relay-cat
 ```
 
-The fully qualified cask name automatically registers [Relay-harness/homebrew-tap](https://github.com/Relay-harness/homebrew-tap). The cask downloads the versioned release ZIP and verifies its pinned SHA-256 before installing Relay Cat.app. It does not compile the app, log in, launch it, or read provider accounts.
+The fully qualified cask name automatically registers [Relay-harness/homebrew-tap](https://github.com/Relay-harness/homebrew-tap). The cask downloads the versioned release ZIP and verifies its pinned SHA-256 before installing Miso.app. It does not compile the app, log in, launch it, or read provider accounts.
 
-Quit any older Relay Cat copy and open **Relay Cat** from Applications. If you want a per-user install instead, use:
+Quit any older Miso copy and open **Miso** from Applications. If you want a per-user install instead, use:
 
 ```sh
 brew install --cask --appdir="$HOME/Applications" relay-harness/tap/relay-cat
 ```
 
-Do not run both public and earlier private Relay Cat copies at once. Public builds use `org.relayharness.relay-cat` and require their own data-permission approval; existing provider CLI sign-ins remain owned by those CLIs.
+Do not run both public and earlier private Miso copies at once. Public builds use `org.relayharness.relay-cat` and require their own data-permission approval; existing provider CLI sign-ins remain owned by those CLIs.
 
 ## Why macOS still says “not verified”
 
@@ -27,7 +27,7 @@ If the warning is that Apple cannot check Relay Cat for malicious software:
 
 1. Review the source, release notes and checksum before deciding whether to trust it.
 2. Try opening Relay Cat once, then dismiss the unverified-developer warning.
-3. Only if you trust the build, open **System Settings → Privacy & Security**, find the blocked Relay Cat entry and choose **Open Anyway**.
+3. Only if you trust the build, open **System Settings → Privacy & Security**, find the blocked Miso entry and choose **Open Anyway**.
 4. Authenticate if asked, then confirm **Open**.
 
 The override may appear only shortly after the blocked launch. Control-click → Open alone may not work on newer macOS. Managed Macs may require administrator approval. See [Apple’s guidance](https://support.apple.com/102445).
@@ -36,7 +36,7 @@ The override may appear only shortly after the blocked launch. Control-click →
 
 ## Updates and removal
 
-Quit Relay Cat before updating:
+Quit Miso before updating:
 
 ```sh
 brew update
@@ -62,3 +62,13 @@ Uninstall removes only the Homebrew-managed app. No zap operation is configured:
 ### Homebrew 7 cask trust
 
 The fully qualified install command automatically records trust for this specific cask. Standalone `brew info`, `brew fetch` or `brew audit` commands can refuse an untrusted third-party cask before installation. After reviewing the cask, Homebrew 7 users can run `brew trust --cask relay-harness/tap/relay-cat` to authorize only its package definition. Do not trust all taps as a workaround. This is separate from Apple verification and does not disable Gatekeeper. Earlier Homebrew versions may not have the trust command.
+
+## Connection and update status
+
+Open Miso → Data permissions → **Connection details…** to see the actual running version/path, other installed app copies, sharing choice, per-provider error and last server acknowledgement. A cat in the menu bar does not by itself mean website sharing is on.
+
+Keep one managed copy. If a manual copy in `~/Applications` coexists with the Homebrew copy in `/Applications`, quit both and choose which installation to keep before updating. Do not delete preferences or reporting keys to fix an app-path issue.
+
+The current app's update action copies the Homebrew command or opens release information. It is not an automatic verified installer. A failed update check is shown as a failure, not “up to date.” **Open at login** is optional and is registered only when you select it; macOS can ask for approval of that explicit login-item setting.
+
+Developer ID signing and notarization are still pending a valid signing identity. No release disables Gatekeeper, clears quarantine, or grants provider/browser access automatically.

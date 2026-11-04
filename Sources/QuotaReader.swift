@@ -8,6 +8,23 @@ struct ReaderResult: Sendable {
     let tooLarge: Bool
 }
 
+/// Cancellation owns only the helper started by this request, never a user's provider CLI.
+final class ReaderCancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var process: Process?
+    private var cancelled = false
+    var isCancelled: Bool { lock.lock(); defer { lock.unlock() }; return cancelled }
+    func attach(_ process: Process) {
+        lock.lock(); self.process = process; let stop = cancelled; lock.unlock()
+        if stop { terminate(process) }
+    }
+    func cancel() { lock.lock(); cancelled = true; let p = process; lock.unlock(); if let p { terminate(p) } }
+    private func terminate(_ p: Process) {
+        guard p.isRunning else { return }; p.terminate()
+        DispatchQueue.global().asyncAfter(deadline: .now()+2) { if p.isRunning { Darwin.kill(p.processIdentifier, SIGKILL) } }
+    }
+}
+
 enum QuotaReader {
     /// Keep the real macOS account identity for owner-CLI credential lookup, but never inherit API keys or tokens.
     static func environment(home: URL, config: URL, allowBrowserCookies: Bool, userName: String = NSUserName()) -> [String: String] {
@@ -17,13 +34,14 @@ enum QuotaReader {
                 "CODEXBAR_CONFIG": config.path,
                 "CODEXBAR_ALLOW_BROWSER_COOKIE_IMPORT": allowBrowserCookies ? "1" : "0"]
     }
-    static func read(executable: URL, arguments: [String], environment: [String: String], directory: URL, timeout: TimeInterval = 70) async -> ReaderResult {
+    static func read(executable: URL, arguments: [String], environment: [String: String], directory: URL, timeout: TimeInterval = 70, cancellation: ReaderCancellation? = nil) async -> ReaderResult {
         await Task.detached(priority: .utility) {
-            run(executable: executable, arguments: arguments, environment: environment, directory: directory, timeout: timeout)
+            run(executable: executable, arguments: arguments, environment: environment, directory: directory, timeout: timeout, cancellation: cancellation)
         }.value
     }
     /// Run an argument-array command, never a shell. No raw responses or stderr are persisted.
-    static func run(executable: URL, arguments: [String], environment: [String: String], directory: URL, timeout: TimeInterval = 70) -> ReaderResult {
+    static func run(executable: URL, arguments: [String], environment: [String: String], directory: URL, timeout: TimeInterval = 70, cancellation: ReaderCancellation? = nil) -> ReaderResult {
+        guard cancellation?.isCancelled != true else { return ReaderResult(data: Data(), exitCode: -1, timedOut: false, tooLarge: false) }
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
@@ -37,6 +55,7 @@ enum QuotaReader {
         let finishedReading = DispatchSemaphore(value: 0)
         do { try process.run() }
         catch { return ReaderResult(data: Data(), exitCode: -1, timedOut: false, tooLarge: false) }
+        cancellation?.attach(process)
         let deadline = DispatchWorkItem {
             if process.isRunning {
                 state.markTimeout()
@@ -104,13 +123,17 @@ final class QuotaStore {
     var onChange: (() -> Void)?
     var onFreshReading: ((QuotaReading) -> Void)?
     private var generation = 0
-    private(set) var providerActive = false
+    private(set) var activeProviders: Set<QuotaProvider> = []
+    var providerActive: Bool { !activeProviders.isEmpty }
+    private var readers: [QuotaProvider: ReaderCancellation] = [:]
+    private var tokenReaders: [QuotaProvider: ReaderCancellation] = [:]
+    private var browserReader: ReaderCancellation?
     private var lastAttempt = Date.distantPast
     var enabled: Bool { defaults.bool(forKey: "realQuotasEnabled") }
     var geminiBrowserAllowed: Bool { defaults.bool(forKey: "geminiBrowserAllowed") }
     private var providerSelection: ProviderSelection { ProviderSelection(saved: defaults.stringArray(forKey: "optionalQuotaProviders")) }
     var visibleProviders: [QuotaProvider] { providerSelection.providers }
-    var quotaProvidersForRefresh: [QuotaProvider] { providerSelection.quotaRequests(allowGemini: geminiBrowserAllowed) }
+    var quotaProvidersForRefresh: [QuotaProvider] { providerSelection.quotaRequests(allowGemini: geminiBrowserAllowed).filter { activeProviders.contains($0) } }
     var displayedProvider: QuotaProvider {
         let stored = QuotaProvider(rawValue: defaults.string(forKey: "quotaInBar") ?? "claude") ?? .claude
         return visibleProviders.contains(stored) ? stored : .codex
@@ -118,17 +141,23 @@ final class QuotaStore {
     var showInBar: Bool { defaults.object(forKey: "showQuotaInBar") as? Bool ?? true }
 
     init(defaults: UserDefaults = .standard) { self.defaults = defaults }
-    func setProviderActive(_ active: Bool) {
-        guard providerActive != active else { return }
-        providerActive = active; generation += 1
-        if !active { readings.removeAll(); problems.removeAll(); history.clear() }
-        lastAttempt = .distantPast; onChange?()
-        if active && enabled { refresh() }
+    func setProviderActive(_ active: Bool) { setActiveProviders(active ? Set([.claude, .codex]) : []) }
+    func setActiveProviders(_ providers: Set<QuotaProvider>) {
+        guard activeProviders != providers else { return }
+        activeProviders = providers; generation += 1; tokenGeneration += 1
+        cancelReaders()
+        lastAttempt = .distantPast; lastTokenAttempt = .distantPast; onChange?()
+        if enabled { refresh() }
     }
+    func cancelReaders() {
+        readers.values.forEach { $0.cancel() }; tokenReaders.values.forEach { $0.cancel() }; browserReader?.cancel()
+        // Existing completions clear their busy flags. Never overlap an old and new helper.
+    }
+    func pauseForSleep() { setActiveProviders([]) }
     func setEnabled(_ value: Bool) {
         generation += 1
         defaults.set(value, forKey: "realQuotasEnabled")
-        if !value { defaults.set(false, forKey: "geminiBrowserAllowed") }
+        if !value { defaults.set(false, forKey: "geminiBrowserAllowed"); readers.values.forEach { $0.cancel() }; browserReader?.cancel() }
         lastAttempt = .distantPast
         readings.removeAll(); problems.removeAll(); history.clear()
         onChange?()
@@ -156,14 +185,14 @@ final class QuotaStore {
     func toggleInBar() { defaults.set(!showInBar, forKey: "showQuotaInBar"); onChange?() }
     func revokeGemini() {
         generation += 1
-        defaults.set(false, forKey: "geminiBrowserAllowed")
+        defaults.set(false, forKey: "geminiBrowserAllowed"); browserReader?.cancel()
         readings[.gemini] = nil; problems[.gemini] = nil
         lastAttempt = .distantPast
         onChange?()
     }
     func refreshIfDue() {
         if enabled && providerActive && Date().timeIntervalSince(lastAttempt) >= 300 { refresh() }
-        if tokensEnabled && Date().timeIntervalSince(lastTokenAttempt) >= 300 { refreshTokens() }
+        if tokensEnabled && providerActive && Date().timeIntervalSince(lastTokenAttempt) >= 300 { refreshTokens() }
     }
     func forecast(_ provider: QuotaProvider, window: QuotaWindow, now: Date) -> QuotaForecast? {
         guard problems[provider] == nil, let reading = readings[provider] else { return nil }
@@ -171,24 +200,27 @@ final class QuotaStore {
     }
     func setTokensEnabled(_ enabled: Bool) {
         tokenGeneration += 1
+        tokenReaders.values.forEach { $0.cancel() }
         defaults.set(enabled, forKey: "localTokenStatsEnabled")
         tokens.removeAll(); tokenProblems.removeAll(); lastTokenAttempt = .distantPast
         if enabled { refreshTokens() }
         onChange?()
     }
     func refreshTokens() {
-        guard tokensEnabled, !readingTokens else { return }
+        guard tokensEnabled, providerActive, !readingTokens else { return }
         let paths: (URL, URL, URL)
         do { paths = try locations() } catch { return }
         readingTokens = true; lastTokenAttempt = Date()
         let token = tokenGeneration
-        let jobs = [QuotaProvider.claude, .codex].map { ($0, environment(config: paths.2, provider: $0)) }
+        let jobs = [QuotaProvider.claude, .codex].filter { activeProviders.contains($0) }.map { ($0, environment(config: paths.2, provider: $0)) }
+        tokenReaders = Dictionary(uniqueKeysWithValues: jobs.map { ($0.0, ReaderCancellation()) })
+        let cancellations = tokenReaders
         onChange?()
         Task {
             await withTaskGroup(of: (QuotaProvider, TokenReading?).self) { group in
                 for (provider, env) in jobs {
                     group.addTask {
-                        let result = await QuotaReader.read(executable: paths.0, arguments: ["cost", "--provider", provider.rawValue, "--days", "1", "--format", "json", "--json-only", "--no-color"], environment: env, directory: paths.1)
+                        let result = await QuotaReader.read(executable: paths.0, arguments: ["cost", "--provider", provider.rawValue, "--days", "1", "--format", "json", "--json-only", "--no-color"], environment: env, directory: paths.1, cancellation: cancellations[provider])
                         guard result.exitCode == 0, !result.timedOut, !result.tooLarge else { return (provider, nil) }
                         return (provider, try? TokenParser.parse(result.data, provider: provider, now: Date()))
                     }
@@ -206,6 +238,7 @@ final class QuotaStore {
     }
     func headline(_ provider: QuotaProvider, at now: Date = Date()) -> String {
         guard enabled else { return "Not connected" }
+        if !activeProviders.contains(provider) { return "Paused · provider not running" }
         if provider == .gemini && !geminiBrowserAllowed { return "Browser permission needed" }
         if problems[provider] != nil { return "Unavailable" }
         if let reading = readings[provider] { return reading.headline(at: now) }
@@ -238,14 +271,17 @@ final class QuotaStore {
         QuotaReader.environment(home: FileManager.default.homeDirectoryForCurrentUser, config: config,
             allowBrowserCookies: provider == .gemini && geminiBrowserAllowed)
     }
-    func refresh() {
-        guard enabled, providerActive, !refreshing, !connectingBrowser else { return }
+    func refresh(requested: [QuotaProvider]? = nil) {
+        let selected = requested.map { $0.filter { visibleProviders.contains($0) && ($0 != .gemini || geminiBrowserAllowed) } } ?? quotaProvidersForRefresh
+        guard enabled, !selected.isEmpty, !refreshing, !connectingBrowser else { return }
         let locations: (URL, URL, URL)
         do { locations = try self.locations() }
         catch { for p in QuotaProvider.allCases { problems[p] = "Quota reader is unavailable. Reinstall Miso." }; onChange?(); return }
         refreshing = true; lastAttempt = Date()
         let token = generation
-        let jobs = quotaProvidersForRefresh.map { ($0, environment(config: locations.2, provider: $0)) }
+        let jobs = selected.map { ($0, environment(config: locations.2, provider: $0)) }
+        readers = Dictionary(uniqueKeysWithValues: jobs.map { ($0.0, ReaderCancellation()) })
+        let cancellations = readers
         onChange?()
         Task {
             await withTaskGroup(of: QuotaFetch.self) { group in
@@ -253,7 +289,7 @@ final class QuotaStore {
                     group.addTask {
                         let result = await QuotaReader.read(executable: locations.0,
                             arguments: ["usage", "--provider", provider.rawValue, "--source", provider.source, "--format", "json", "--json-only", "--no-color", "--web-timeout", "30"],
-                            environment: env, directory: locations.1)
+                            environment: env, directory: locations.1, cancellation: cancellations[provider])
                         if result.timedOut { return QuotaFetch(provider: provider, reading: nil, problem: "Request timed out. Retry or check sign-in.") }
                         if result.tooLarge { return QuotaFetch(provider: provider, reading: nil, problem: "Response was too large; no quota accepted.") }
                         // A nonzero command cannot publish a success-looking quota.
@@ -285,12 +321,13 @@ final class QuotaStore {
         catch { problems[.gemini] = "Quota reader is unavailable."; onChange?(); return }
         connectingBrowser = true; onChange?()
         let env = environment(config: locations.2, provider: .gemini)
+        let cancellation = ReaderCancellation(); browserReader = cancellation
         Task {
             _ = await Task.detached {
-                QuotaReader.run(executable: locations.0, arguments: ["cookie", "refresh", "--provider", "gemini", "--allow-keychain-prompt"], environment: env, directory: locations.1, timeout: 70)
+                QuotaReader.run(executable: locations.0, arguments: ["cookie", "refresh", "--provider", "gemini", "--allow-keychain-prompt"], environment: env, directory: locations.1, timeout: 70, cancellation: cancellation)
             }.value
-            connectingBrowser = false
-            if enabled && geminiBrowserAllowed { refresh() }
+            connectingBrowser = false; browserReader = nil
+            if enabled && geminiBrowserAllowed { refresh(requested: [.gemini]) }
             onChange?()
         }
     }

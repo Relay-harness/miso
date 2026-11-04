@@ -24,7 +24,7 @@ Miso is made to be quiet and respectful. No analytics, keyboard recording, feedi
 
 ## Opt-in community quota dashboard (source-build feature)
 
-Miso checks for a newer published release at launch and offers an explicit **Update Miso** button. It never downloads or installs an update by itself. Homebrew users update with `brew upgrade --cask relay-harness/tap/relay-cat`.
+Miso checks for a newer published release at launch and offers a release notice with an explicit **Copy Homebrew update command** or **View release** button. It never downloads or installs an update by itself. Homebrew users update with `brew upgrade --cask relay-harness/tap/relay-cat`.
 
 When you click **Enable live quotas**, Miso also shares rounded five-hour and weekly usage percentages with [throttleindex.com](https://www.throttleindex.com). The dialog says so, and there is no separate popup. Turn sharing off or delete shared readings in **Data permissions**. Allowance calibration is optional and always user-started, because it uses subscription quota.
 
@@ -49,7 +49,7 @@ Quit any older Relay Cat copy, then open **Miso** from Applications. The officia
 
 **Homebrew makes installation easier, not Apple-verified. This preview is ad-hoc signed and not notarized.** If macOS blocks the first launch with an unverified-developer warning, review the source/release first. Only if you trust it: try opening the app once, then choose **System Settings → Privacy & Security → Open Anyway**, authenticate if asked, and confirm **Open**. Control-click → Open alone may not work on current macOS. Do not override a malware/“will damage your computer” alert. Never disable Gatekeeper system-wide. The cask does not remove quarantine.
 
-See [Homebrew installation, updates and troubleshooting](docs/HOMEBREW.md), or [download the v1.9.2 ZIP and checksum](https://github.com/Relay-harness/miso/releases/tag/v1.9.2).
+See [Homebrew installation, updates and troubleshooting](docs/HOMEBREW.md), or [download the v1.9.4 ZIP and checksum](https://github.com/Relay-harness/miso/releases/tag/v1.9.4).
 
 ## Build from a clean checkout
 
@@ -104,3 +104,7 @@ Relay Cat uses preference domain `org.relayharness.relay-cat`. When moving from 
 - [MIT license](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 Independent community software, not affiliated with Anthropic, OpenAI, Google, xAI, or the authors of upstream provider CLIs. Private endpoints and CLI output formats can change. Forecasts are estimates, not guarantees of available service.
+
+### Reporting reliability
+
+Miso shows an inline website status and **Connection details…** with per-provider last acknowledgements. Revoked sharing is preserved across reconnects and updates. Quota/token workers are scoped to the detected provider and pause on sleep; the website shows recent reports, not guaranteed online presence. One valid opted-in report can fill a live usage bar. Calibration is separate and never inferred from usage.

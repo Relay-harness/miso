@@ -1,5 +1,8 @@
 import Foundation
 import CryptoKit
+import Security
+import LocalAuthentication
+import Darwin
 
 /// Explicitly opt-in, pseudonymous community transport. Provider credentials never enter this type.
 struct CommunityWindow: Codable, Sendable {
@@ -20,7 +23,7 @@ struct CommunityReport: Codable, Sendable {
 }
 enum CommunityPayload {
     /// Public dashboard. Users can still enter their own collector; nothing is sent without consent.
-    static let defaultServer = "https://www.throttleindex.com"
+    static let defaultServer = "https://api.throttleindex.com"
     static func bucket(_ date: Date) -> Int64 { Int64(floor(date.timeIntervalSince1970 / 300)) * 300_000 }
     static func windows(_ reading: QuotaReading, now: Date) -> [CommunityWindow] {
         guard !reading.stale(at: now), reading.provider == .claude || reading.provider == .codex else { return [] }
@@ -48,6 +51,48 @@ enum CommunityPayload {
 private final class CommunityRedirectBlocker: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
 }
+
+/// Own reporting identity only. Never accesses a provider's credentials.
+struct CommunityIdentityStore {
+    let file: URL
+    var legacy: () throws -> Data? = {
+        let context = LAContext(); context.interactionNotAllowed = true
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "org.relayharness.relay-cat.community", kSecAttrAccount as String: "signing-v1",
+            kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseAuthenticationContext as String: context]
+        var result: CFTypeRef?
+        let code = SecItemCopyMatching(query as CFDictionary, &result)
+        if code == errSecItemNotFound { return nil }
+        guard code == errSecSuccess, let data = result as? Data else {
+            throw NSError(domain: "MisoIdentity", code: Int(code), userInfo: [NSLocalizedDescriptionKey:
+                "Legacy reporting key needs recovery. No password prompt was opened. Use Recover legacy reports in Data permissions."])
+        }
+        return data
+    }
+    func load(create: Bool) throws -> Curve25519.Signing.PrivateKey {
+        let manager = FileManager.default
+        if manager.fileExists(atPath: file.path) {
+            let attributes = try manager.attributesOfItem(atPath: file.path)
+            guard attributes[.type] as? FileAttributeType == .typeRegular else { throw CocoaError(.fileReadNoPermission) }
+            try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+            return try Curve25519.Signing.PrivateKey(rawRepresentation: Data(contentsOf: file))
+        }
+        guard create else { throw CocoaError(.fileNoSuchFile) }
+        let value: Curve25519.Signing.PrivateKey
+        if let bytes = try legacy() { value = try Curve25519.Signing.PrivateKey(rawRepresentation: bytes) }
+        else { value = Curve25519.Signing.PrivateKey() }
+        try manager.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true,
+                                    attributes: [.posixPermissions: 0o700])
+        let fd = open(file.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, S_IRUSR | S_IWUSR)
+        guard fd >= 0 else { throw CocoaError(.fileWriteNoPermission) }
+        let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+        do { try handle.write(contentsOf: value.rawRepresentation); try handle.synchronize(); try handle.close() }
+        catch { try? handle.close(); try? manager.removeItem(at: file); throw error }
+        return value
+    }
+}
+
 @MainActor
 final class CommunitySharing {
     private let defaults: UserDefaults
@@ -56,52 +101,62 @@ final class CommunitySharing {
     private var lastBucket: [QuotaProvider: Int64] = [:]
     private var scopes: [QuotaProvider: String] = [:]
     private var series: [QuotaProvider: String] = [:]
+    private var taskIDs: [QuotaProvider: UUID] = [:]
     private var tasks: [QuotaProvider: Task<Void, Never>] = [:]
-    private lazy var session: URLSession = {
+    private let session: URLSession
+    private let retryDelays: [UInt64]
+    static func session() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
         config.httpCookieStorage = nil; config.httpShouldSetCookies = false
         config.urlCache = nil; config.requestCachePolicy = .reloadIgnoringLocalCacheData
         config.timeoutIntervalForRequest = 12; config.timeoutIntervalForResource = 15
         return URLSession(configuration: config, delegate: CommunityRedirectBlocker(), delegateQueue: nil)
-    }()
+    }
     private(set) var status = "Sharing is off."
     var enabled: Bool { defaults.bool(forKey: "communitySharingEnabled") && defaults.integer(forKey: "communityConsentVersion") == 1 }
     var hasIdentity: Bool { FileManager.default.fileExists(atPath: identityURL.path) }
-    private var identityURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Relay Cat/Community/signing-v1.key")
+    private let identityStore: CommunityIdentityStore
+    private var identityURL: URL { identityStore.file }
+    var onChange: (() -> Void)?
+    private(set) var providerStatus: [QuotaProvider: String] = [:]
+    func lastAccepted(_ provider: QuotaProvider) -> Date? { defaults.object(forKey: "communityAccepted-" + provider.rawValue) as? Date }
+    var endpoint: URL? {
+        guard let saved = defaults.string(forKey: "communityServer") else { return nil }
+        // Both public roots route to the same operator/identity. Custom collectors are untouched.
+        return CommunityPayload.endpoint(saved == "https://www.throttleindex.com" || saved == "https://www.throttleindex.com/" ? CommunityPayload.defaultServer : saved)
     }
-    var endpoint: URL? { defaults.string(forKey: "communityServer").flatMap(CommunityPayload.endpoint) }
-    init(defaults: UserDefaults = .standard) { self.defaults = defaults; if enabled { status = "Consent retained. Waiting for a fresh quota reading." } }
+    init(defaults: UserDefaults = .standard, identityStore: CommunityIdentityStore? = nil, session: URLSession? = nil,
+         retryDelays: [UInt64] = [2_000_000_000, 5_000_000_000, 15_000_000_000]) {
+        self.defaults = defaults; self.session = session ?? Self.session(); self.retryDelays = retryDelays
+        self.identityStore = identityStore ?? CommunityIdentityStore(file: FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Relay Cat/Community/signing-v1.key"))
+        if enabled { status = "Waiting for a fresh quota reading. Last acknowledgement is shown per provider." }
+    }
+    private func setStatus(_ text: String, provider: QuotaProvider) {
+        status = text; providerStatus[provider] = text; onChange?()
+    }
+    func pauseUploads() { generation += 1; tasks.values.forEach { $0.cancel() }; tasks.removeAll(); taskIDs.removeAll(); onChange?() }
+
     func enable(server: URL, claudePlan: String, codexPlan: String) throws {
         guard !deleting, CommunityPayload.endpoint(server.absoluteString) != nil else { throw URLError(.badURL) }
-        if hasIdentity, let previous = endpoint, previous.absoluteString != server.absoluteString { throw URLError(.badURL) }
+        if hasIdentity || defaults.bool(forKey: "communityIdentityCreated"), let previous = endpoint, previous.absoluteString != server.absoluteString { throw URLError(.badURL) }
         // Configure an identity only after consent. Never replace a retained deletion identity silently.
         _ = try key(create: true)
         defaults.set(server.absoluteString, forKey: "communityServer")
         defaults.set(claudePlan, forKey: "communityClaudePlan"); defaults.set(codexPlan, forKey: "communityCodexPlan")
         defaults.set(1, forKey: "communityConsentVersion"); defaults.set(true, forKey: "communitySharingEnabled")
-        generation += 1; lastBucket.removeAll(); status = "Waiting for a fresh five-hour or weekly reading."
+        pauseUploads(); lastBucket.removeAll(); status = "Waiting for a fresh five-hour or weekly reading."
     }
     func stop() {
         defaults.set(false, forKey: "communitySharingEnabled"); generation += 1
-        tasks.values.forEach { $0.cancel() }; tasks.removeAll(); lastBucket.removeAll()
-        status = "Sharing stopped. Previously sent readings remain until deleted or expired."
+        tasks.values.forEach { $0.cancel() }; tasks.removeAll(); taskIDs.removeAll(); lastBucket.removeAll()
+        status = "Sharing stopped. Previously sent readings remain until deleted or expired."; onChange?()
     }
-    // This is a random pseudonymous signing key, not an account credential. Store it in
-    // an owner-only app-support file so sharing never triggers a Keychain authentication prompt.
     private func key(create: Bool) throws -> Curve25519.Signing.PrivateKey {
-        let file = identityURL
-        if let data = try? Data(contentsOf: file) {
-            return try Curve25519.Signing.PrivateKey(rawRepresentation: data)
+        if defaults.bool(forKey: "legacyReportingDeletionConfirmed"), !hasIdentity {
+            return try CommunityIdentityStore(file: identityURL, legacy: { nil }).load(create: create)
         }
-        guard create else { throw CocoaError(.fileNoSuchFile) }
-        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true,
-                                                attributes: [.posixPermissions: 0o700])
-        let value = Curve25519.Signing.PrivateKey()
-        try value.rawRepresentation.write(to: file, options: [.atomic])
-        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
-        defaults.set(true, forKey: "communityIdentityCreated")
-        return value
+        return try identityStore.load(create: create)
     }
     func submit(_ reading: QuotaReading, now: Date = Date()) {
         guard enabled, let server = endpoint, tasks[reading.provider] == nil else { return }
@@ -125,19 +180,73 @@ final class CommunitySharing {
             request.httpMethod = "POST"; request.httpBody = data
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.setValue(try identity.signature(for: data).base64EncodedString(), forHTTPHeaderField: "X-Miso-Signature")
-            let token = generation
-            lastBucket[reading.provider] = bucket
+            let token = generation, id = UUID()
+            taskIDs[reading.provider] = id
+            setStatus("Sending quota report…", provider: reading.provider)
             tasks[reading.provider] = Task { [weak self] in
                 guard let self else { return }
-                do {
-                    let (_, response) = try await session.data(for: request)
-                    guard token == generation, enabled else { return }
-                    let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-                    status = code == 202 ? "Signed quota reading accepted. Public cohorts need enough installations." : "Community server did not accept the reading (HTTP \(code))."
-                } catch { if token == generation { status = "Community server unavailable. Local quota tracking is unaffected." } }
-                if token == generation { tasks[reading.provider] = nil }
+                defer { if taskIDs[reading.provider] == id { tasks[reading.provider] = nil; taskIDs[reading.provider] = nil } }
+                for attempt in 0...retryDelays.count {
+                    guard !Task.isCancelled, token == generation, enabled else { return }
+                    guard !CommunityPayload.windows(reading, now: Date()).isEmpty else {
+                        setStatus("Reading expired before delivery. Waiting for a fresh one.", provider: reading.provider); return
+                    }
+                    // Refresh request time/signature on retry; observation identity/data stay unchanged.
+                    let retryReport = CommunityReport(version: report.version, publicKey: report.publicKey, nonce: UUID().uuidString,
+                        sentAt: Int64(Date().timeIntervalSince1970*1000), provider: report.provider, plan: report.plan,
+                        series: report.series, observedAt: report.observedAt, windows: report.windows)
+                    do {
+                        let body = try JSONEncoder().encode(retryReport)
+                        var retryRequest = request; retryRequest.httpBody = body
+                        retryRequest.setValue(try identity.signature(for: body).base64EncodedString(), forHTTPHeaderField: "X-Miso-Signature")
+                        let (_, response) = try await session.data(for: retryRequest)
+                        guard !Task.isCancelled, token == generation, enabled else { return }
+                        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+                        if code == 202 {
+                            lastBucket[reading.provider] = bucket
+                            defaults.set(Date(), forKey: "communityAccepted-" + reading.provider.rawValue)
+                            setStatus("Accepted by throttleindex collector.", provider: reading.provider); return
+                        }
+                        setStatus("Upload HTTP \(code)" + ((code == 429 || code >= 500) ? " · retrying" : " · check connection details"), provider: reading.provider)
+                        if code != 429 && code < 500 { return }
+                    } catch {
+                        guard !Task.isCancelled, token == generation else { return }
+                        setStatus("Collector unavailable · retrying", provider: reading.provider)
+                    }
+                    guard attempt < retryDelays.count else {
+                        setStatus("Not delivered. Will retry on the next fresh reading.", provider: reading.provider); return
+                    }
+                    do { try await Task.sleep(nanoseconds: retryDelays[attempt] + UInt64.random(in: 0...100_000_000)) }
+                    catch { return }
+                }
             }
-        } catch { status = "Signing identity is unavailable. Stop sharing and check Keychain access." }
+        } catch { setStatus("Reporting identity unavailable: " + error.localizedDescription, provider: reading.provider) }
+    }
+    /// Explicit recovery/deletion for pre-1.9.3 keys only. The caller must show consent first.
+    func deleteLegacyReports() async throws {
+        guard let server = endpoint else { throw URLError(.badURL) }
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "org.relayharness.relay-cat.community", kSecAttrAccount as String: "signing-v1"]
+        var value: CFTypeRef?
+        let code = SecItemCopyMatching(query.merging([kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]) { _, n in n } as CFDictionary, &value)
+        if code == errSecItemNotFound { status = "No legacy reporting key found."; onChange?(); return }
+        guard code == errSecSuccess, let bytes = value as? Data else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(code)) }
+        let oldKey = try Curve25519.Signing.PrivateKey(rawRepresentation: bytes)
+        // Stop only if the active key is the same legacy identity. A newer independent key is preserved.
+        let activeIsLegacy = (try? key(create: false).publicKey.rawRepresentation) == oldKey.publicKey.rawRepresentation
+        if activeIsLegacy { stop() }
+        struct Removal: Codable { let version: Int; let publicKey: String; let nonce: String; let sentAt: Int64; let action: String }
+        let body = try JSONEncoder().encode(Removal(version: 1, publicKey: oldKey.publicKey.rawRepresentation.base64EncodedString(), nonce: UUID().uuidString, sentAt: Int64(Date().timeIntervalSince1970*1000), action: "delete"))
+        var request = URLRequest(url: server.appendingPathComponent("v1/reports")); request.httpMethod = "DELETE"; request.httpBody = body
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(try oldKey.signature(for: body).base64EncodedString(), forHTTPHeaderField: "X-Miso-Signature")
+        let (_, response) = try await session.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+        defaults.set(true, forKey: "legacyReportingDeletionConfirmed")
+        // A matching file identity is now revoked at the server. Remove only that matching file,
+        // so a later explicit opt-in can create a new identity. A different file key is untouched.
+        if activeIsLegacy { try FileManager.default.removeItem(at: identityURL) }
+        status = "Legacy reports deleted. Old Keychain item retained for diagnosis; any different active file identity is unchanged."; onChange?()
     }
     func deleteShared(completion: @escaping (Bool) -> Void) {
         guard !deleting else { completion(false); return }

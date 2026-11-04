@@ -23,6 +23,9 @@ def main():
         output = tests / name
         run(["xcrun", "swiftc"] + swift_flags() + [ROOT / ("Sources/" + item + ".swift") for item in files] + [ROOT / entry, "-o", output])
         run([output], timeout=30)
+    transport = tests / "transport"
+    run(["xcrun", "swiftc", "-parse-as-library"] + swift_flags() + [ROOT / ("Sources/" + item + ".swift") for item in community] + [ROOT / "Tests/Transport/main.swift", "-o", transport])
+    run([transport], timeout=15)
     if args.native_ui:
         if platform.machine() != "arm64":
             raise SystemExit("Native UI tests require Apple Silicon; core/reader tests already passed.")

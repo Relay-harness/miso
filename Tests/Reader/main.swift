@@ -36,3 +36,19 @@ check(Set(safeEnv.keys) == allowed, "environment allowlist excludes inherited AP
 let realIdentity = QuotaReader.environment(home: fixtureHome, config: fixtureConfig, allowBrowserCookies: false)
 check(realIdentity["USER"] == NSUserName() && realIdentity["LOGNAME"] == NSUserName(), "default identity comes from the running macOS user")
 print("\(count) reader checks passed")
+
+let cancellation = ReaderCancellation()
+DispatchQueue.global().asyncAfter(deadline: .now()+0.1) { cancellation.cancel() }
+let began = Date()
+let cancelledRead = QuotaReader.run(executable: URL(fileURLWithPath: "/bin/sleep"), arguments: ["20"], environment: env, directory: directory, timeout: 3, cancellation: cancellation)
+check(Date().timeIntervalSince(began) < 3 && cancelledRead.exitCode != 0, "revoking a reader cancels its owned helper promptly")
+MainActor.assumeIsolated {
+    let suite = "miso-reader-test-" + UUID().uuidString; let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let store = QuotaStore(defaults: defaults)
+    store.setActiveProviders([.claude]); check(store.quotaProvidersForRefresh == [.claude], "Claude-only activity does not query Codex")
+    store.setActiveProviders([.codex]); check(store.quotaProvidersForRefresh == [.codex], "Codex-only activity does not query Claude")
+    store.pauseForSleep(); check(store.quotaProvidersForRefresh.isEmpty, "sleep pauses provider quota work")
+    check(!defaults.bool(forKey: "realQuotasEnabled") && !defaults.bool(forKey: "localTokenStatsEnabled"), "activity detection grants no permissions")
+}
+print("\(count) reader/lifecycle checks passed")

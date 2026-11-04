@@ -46,9 +46,14 @@ export class SignalStore{
  close(){this.db.close();}
  prune(){const now=this.clock();if(now-this.lastPruned<60000)return;this.db.prepare('DELETE FROM observations WHERE observed < ?').run(now-RETENTION);this.db.prepare('DELETE FROM allowance_intervals WHERE end_at < ?').run(now-ALLOWANCE_RETENTION);this.db.prepare('DELETE FROM nonces WHERE received < ?').run(now-RETENTION);this.db.prepare('DELETE FROM revoked WHERE until_time < ?').run(now);this.lastPruned=now;}
  accept(raw,signature){this.prune();const now=this.clock();const {data,install}=authenticate(raw,signature,now);if(this.db.prepare('SELECT 1 FROM revoked WHERE install=?').get(install))reject('Sharing identity revoked',403);
- if(this.db.prepare('SELECT 1 FROM nonces WHERE install=? AND nonce=?').get(install,data.nonce))reject('Replay rejected',409);
  const previous=this.db.prepare('SELECT MAX(observed) AS latest FROM observations WHERE install=? AND provider=?').get(install,data.provider)?.latest;
- if(previous!==null&&previous!==undefined&&data.observedAt<=previous)reject('Duplicate or out-of-order observation',409);
+ if(previous!==null&&previous!==undefined&&data.observedAt<=previous){
+  // A retry after a lost HTTP response must be safe, but only an identical report is accepted.
+  const saved=this.db.prepare('SELECT kind,used,reset,plan,series FROM observations WHERE install=? AND provider=? AND observed=? ORDER BY kind').all(install,data.provider,data.observedAt);
+  if(data.observedAt===previous&&saved.length===data.windows.length&&saved.every(r=>r.plan===data.plan&&r.series===data.series&&data.windows.some(w=>w.kind===r.kind&&w.usedPercent===r.used&&w.resetsAt===r.reset)))return {accepted:true,duplicate:true,windows:saved.length};
+  reject('Duplicate or out-of-order observation',409);
+ }
+ if(this.db.prepare('SELECT 1 FROM nonces WHERE install=? AND nonce=?').get(install,data.nonce))reject('Replay rejected',409);
  // At most one reading per install/provider per five-minute bucket, irrespective of refresh frequency.
  this.db.exec('BEGIN IMMEDIATE');try{this.db.prepare('INSERT INTO nonces VALUES(?,?,?)').run(install,data.nonce,now);const insert=this.db.prepare('INSERT INTO observations VALUES(?,?,?,?,?,?,?,?,?)');for(const w of data.windows)insert.run(install,data.provider,data.plan,w.kind,data.observedAt,w.usedPercent,w.resetsAt,now,data.series);this.db.exec('COMMIT');}catch(error){this.db.exec('ROLLBACK');throw error;}
  return {accepted:true,windows:data.windows.length};}

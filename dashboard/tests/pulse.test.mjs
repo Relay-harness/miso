@@ -22,10 +22,28 @@ test('live line and tab title show pressure right now with its direction',async(
 });
 test('stale or empty pulse never shows numbers',async()=>{
  const p=await browser.newPage();const d=createDemoPulse(Date.now()-20*60000);await open(p,d);
- await p.getByText('No live Miso session connected yet.',{exact:true}).first().waitFor();await p.waitForTimeout(300);assert.equal(await p.locator('.live-bit').count(),0);assert.doesNotMatch(await p.title(),/%/);await p.close();
+ await p.getByText('Waiting for a fresh opted-in Miso report.',{exact:true}).first().waitFor();await p.waitForTimeout(300);assert.equal(await p.locator('.live-bit').count(),0);assert.doesNotMatch(await p.title(),/%/);await p.close();
 });
 test('install command can be copied',async()=>{
  const ctx=await browser.newContext({permissions:['clipboard-read','clipboard-write']});const p=await ctx.newPage();await open(p,createDemoPulse(Date.now()));
  await p.getByRole('button',{name:'Copy'}).click();await p.getByRole('button',{name:'Copied'}).waitFor();
  assert.equal(await p.evaluate(()=>navigator.clipboard.readText()),'brew install --cask relay-harness/tap/relay-cat');await ctx.close();
+});
+
+test('one real installation fills live bars, shows distinct union, and does not claim online presence',async()=>{
+ const p=await browser.newPage();const d=createDemoPulse(Date.now());d.reportingInstallations=2;
+ d.providers.claude.now={installs:1,atLimit:0,medianUsed:15,latestAt:Date.now()-60000};d.providers.codex.now={installs:1,atLimit:0,medianUsed:35,latestAt:Date.now()-60000};
+ await open(p,d);await p.getByText('1 Mac reported in the last 10m',{exact:false}).first().waitFor();
+ assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'15');assert.equal(await p.locator('.claude .quota-segment.is-filled').count(),6);
+ assert.equal(await p.locator('.codex .gauge-number strong').innerText(),'35');assert.equal(await p.locator('.join-count strong').innerText(),'2');
+ assert.doesNotMatch(await p.locator('.provider-stack').innerText(),/connected Mac|this week/);
+ await p.unroute('**/api/pulse');await p.route('**/api/pulse',r=>r.fulfill({status:503,body:'unavailable'}));await p.evaluate(()=>window.dispatchEvent(new Event('online')));
+ await p.getByText('Live connection interrupted.',{exact:false}).waitFor();assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'15');await p.close();
+});
+
+test('last-known quota does not claim a live session after reporting stops',async()=>{
+ const p=await browser.newPage();const d=createDemoPulse(Date.now());d.reportingInstallations=null;d.providers.codex.now=null;
+ d.providers.claude.now=null;d.providers.claude.lastKnown={installs:1,medianUsed:35,atLimit:0,latestAt:Date.now()-11*60000};
+ await open(p,d);await p.getByText('not live',{exact:false}).first().waitFor();
+ assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'35');assert.equal(await p.locator('.claude .pressure-track.last-known').count(),1);assert.equal(await p.locator('.claude .live-bit').count(),0);await p.close();
 });

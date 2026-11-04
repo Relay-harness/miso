@@ -1,6 +1,7 @@
 import AppKit
 import CoreGraphics
 import SwiftUI
+import ServiceManagement
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation, NSPopoverDelegate {
@@ -23,7 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     private var menuOpen = false
     private var completed = 0
     private lazy var quotas = QuotaStore(defaults: settings)
-    private lazy var sharing = CommunitySharing(defaults: settings)
+    private lazy var sharing = CommunitySharing(defaults: settings, identityStore: CommandLine.arguments.contains("--verify-quota-menu") ?
+        CommunityIdentityStore(file: FileManager.default.temporaryDirectory.appendingPathComponent("miso-ui-" + UUID().uuidString + "/identity.key"), legacy: { nil }) : nil)
     private lazy var calibration = CalibrationCoordinator(defaults: settings)
     private let popover = NSPopover()
     private var dashboardHost: NSViewController?
@@ -61,11 +63,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         dashboard.onLayoutChange = { [weak self] in self?.resizeDashboardIfNeeded() }
         quotas.onChange = { [weak self] in
             self?.update()
-            self?.dashboard.sync()
+            self?.dashboard.sync(); self?.syncConnectionStatus()
         }
+        sharing.onChange = { [weak self] in self?.syncConnectionStatus() }
+        syncConnectionStatus()
         quotas.onFreshReading = { [weak self] reading in self?.sharing.submit(reading) }
-        activity.refreshIfDue(interval: 0) { [weak self] active in self?.quotas.setProviderActive(active) }
-        MisoUpdateChecker.check { [weak self] update in self?.showUpdateIfNeeded(update) }
+        if !CommandLine.arguments.contains("--verify-quota-menu") { activity.refreshIfDue(interval: 0) { [weak self] active in self?.quotas.setActiveProviders(active) } }
+        if !CommandLine.arguments.contains("--verify-quota-menu") { MisoUpdateChecker.check { [weak self] result in self?.handleUpdateResult(result, manual: false) } }
         quotas.refreshIfDue()
         update()
         if CommandLine.arguments.contains("--verify-quota-menu") {
@@ -75,9 +79,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
         timer = Timer(timeInterval: 0.25, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
         RunLoop.main.add(timer!, forMode: .common)
-        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(tick), name: NSWorkspace.didWakeNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(didWake), name: NSWorkspace.didWakeNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(willSleep), name: NSWorkspace.willSleepNotification, object: nil)
     }
 
+    private func syncConnectionStatus() {
+        let provider = dashboard.selected
+        if !sharing.enabled { dashboard.reportingStatus = "Website sharing off · local tracking only" }
+        else if !quotas.enabled { dashboard.reportingStatus = "Website sharing paused · quota access off" }
+        else if !quotas.activeProviders.contains(provider) { dashboard.reportingStatus = "Website sharing paused · \(provider.name) not running" }
+        else {
+            let detail = sharing.providerStatus[provider] ?? "Waiting for a fresh quota reading"
+            let stamp = sharing.lastAccepted(provider).map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) }
+            dashboard.reportingStatus = "Website: " + detail + (stamp.map { " · last accepted " + $0 } ?? " · no acknowledgement yet")
+        }
+    }
+    @objc private func willSleep() { quotas.pauseForSleep(); sharing.pauseUploads() }
+    @objc private func didWake() { activity.reset(); tick() }
+    func applicationWillTerminate(_ notification: Notification) { quotas.cancelReaders(); sharing.pauseUploads(); calibration.stop() }
     @objc private func tick() {
         let now = Date()
         if let event = clock.tick(at: now) {
@@ -92,7 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             if sound { NSSound(named: NSSound.Name("Glass"))?.play() }
         }
         frame = (frame + 1) % 8
-        activity.refreshIfDue { [weak self] active in self?.quotas.setProviderActive(active) }
+        activity.refreshIfDue { [weak self] active in self?.quotas.setActiveProviders(active) }
         quotas.refreshIfDue()
         update()
     }
@@ -128,6 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let coat = NSMenuItem(title: "Coat color", action: nil, keyEquivalent: "")
         coat.submenu = colors; menu.addItem(coat)
         add(menu, "Animate cat", #selector(toggleAnimation)).state = animate ? .on : .off
+        add(menu, "Open at login", #selector(toggleOpenAtLogin)).state = !CommandLine.arguments.contains("--verify-quota-menu") && SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(.separator())
         add(menu, "Show quota beside cat", #selector(toggleQuotaInBar)).state = quotas.showInBar ? .on : .off
         // Keep revocation available without repeating connection/refresh commands in the top-level menu.
@@ -136,7 +156,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         add(permissions, "Local token statistics", #selector(toggleTokenStats)).state = quotas.tokensEnabled ? .on : .off
         add(permissions, "Contribute to global dashboard…", #selector(reviewDashboardContribution))
         add(permissions, "Share community quota signals…", #selector(toggleCommunitySharing)).state = sharing.enabled ? .on : .off
-        add(permissions, "Community sharing details…", #selector(communityDetails))
+        add(permissions, "Connection details…", #selector(communityDetails))
+        add(permissions, "Recover legacy reports…", #selector(recoverLegacyReports))
         add(permissions, calibration.running ? "Stop allowance calibration" : "Run allowance calibration…", #selector(toggleAllowanceCalibration))
         add(permissions, "Allowance calibration status…", #selector(calibrationDetails))
         if calibration.transport.hasIdentity { add(permissions, "Delete calibration reports…", #selector(deleteCalibrationReports)) }
@@ -190,28 +211,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         update()
     }
     @objc private func setPalette(_ sender: NSMenuItem) { settings.set(sender.tag, forKey: "palette"); update() }
+    @objc private func toggleOpenAtLogin() {
+        Task {
+            do {
+                if SMAppService.mainApp.status == .enabled { try await SMAppService.mainApp.unregister() }
+                else { try SMAppService.mainApp.register() }
+            } catch { communityAlert("Login setting was not changed", error.localizedDescription) }
+        }
+    }
     @objc private func toggleAnimation() { settings.set(!animate, forKey: "animate"); update() }
     @objc private func toggleSound() { settings.set(!sound, forKey: "sound") }
-    @objc private func checkForUpdates() { MisoUpdateChecker.check { [weak self] update in
-        guard let self else { return }; self.availableUpdate=update
-        if let update { self.showUpdateAlert(update) }
-        else { self.communityAlert("Miso is up to date", "You have the latest released version.") }
-    } }
-    @objc private func openUpdate(_ sender: NSMenuItem) { if let url=sender.representedObject as? URL { NSWorkspace.shared.open(url) } }
-    private func showUpdateIfNeeded(_ update: MisoUpdate?) { availableUpdate=update; if let update { showUpdateAlert(update) } }
+    @objc private func checkForUpdates() { MisoUpdateChecker.check { [weak self] result in self?.handleUpdateResult(result, manual: true) } }
+    private func handleUpdateResult(_ result: MisoUpdateResult, manual: Bool) {
+        switch result {
+        case .current: if manual { communityAlert("Miso is up to date", "No newer published Miso release was found.") }
+        case .unavailable(let reason): if manual { communityAlert("Update check failed", reason) }
+        case .available(let update):
+            availableUpdate = update
+            if manual || settings.string(forKey: "offeredMisoVersion") != update.version { showUpdateAlert(update) }
+        }
+    }
+    @objc private func openUpdate(_ sender: NSMenuItem) { if let availableUpdate { showUpdateAlert(availableUpdate) } }
     private func showUpdateAlert(_ update: MisoUpdate) {
-        guard NSApp.modalWindow == nil else { return }
-        NSApp.activate(ignoringOtherApps: true)
+        guard NSApp.modalWindow == nil else { return } // The menu action remains available if a dialog is already open.
+        settings.set(update.version, forKey: "offeredMisoVersion")
         let alert=NSAlert(); alert.messageText="Miso \(update.version) is available"
-        alert.informativeText="You are using an older version. Update to get the latest fixes and connection improvements."
-        alert.addButton(withTitle:"Update Miso"); alert.addButton(withTitle:"Later")
-        if alert.runModal() == .alertFirstButtonReturn { NSWorkspace.shared.open(update.page) }
+        alert.informativeText="This version does not install updates itself. If installed with Homebrew, quit Miso and run:\n\nbrew update && brew upgrade --cask relay-harness/tap/relay-cat\n\nFor a manual installation, view the release. Keep only one installed app copy."
+        alert.addButton(withTitle:"Copy Homebrew update command"); alert.addButton(withTitle:"View release"); alert.addButton(withTitle:"Later")
+        let answer = alert.runModal()
+        if answer == .alertFirstButtonReturn {
+            NSPasteboard.general.clearContents(); NSPasteboard.general.setString("brew update && brew upgrade --cask relay-harness/tap/relay-cat", forType: .string)
+        } else if answer == .alertSecondButtonReturn { NSWorkspace.shared.open(update.page) }
     }
     @objc private func about() {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Meet Miso"
-        alert.informativeText = "A tiny, original pixel cat for your menu bar.\n\nMiso naps after 90 seconds of inactivity, or during a five-minute focus break.\n\nOptional real subscription quotas use the bundled CodexBar reader and your existing sign-ins. No API-cost estimates are shown as quota. Gemini browser access requires separate consent. No raw quota responses or account emails are saved by Miso.\n\nNo advertising analytics or keyboard recording. Community quota sharing is off by default and requires separate consent. OpenAI and Claude tabs, optional Gemini and Grok, quota pace forecasts and optional local token stats. Version 1.9.1 · Independent of Mac Pet."
+        alert.informativeText = "A tiny, original pixel cat for your menu bar.\n\nMiso naps after 90 seconds of inactivity, or during a five-minute focus break.\n\nOptional real subscription quotas use the bundled CodexBar reader and your existing sign-ins. No API-cost estimates are shown as quota. Gemini browser access requires separate consent. No raw quota responses or account emails are saved by Miso.\n\nNo advertising analytics or keyboard recording. The Connect dialog discloses optional website sharing. A previously revoked sharing choice stays off. See Data permissions for current status. OpenAI and Claude tabs, optional Gemini and Grok, quota pace forecasts and optional local token stats. Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown") · Independent of Mac Pet."
         alert.addButton(withTitle: "Lovely")
         alert.runModal()
     }
@@ -275,7 +311,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     @objc private func refreshDashboard() {
         if !quotas.enabled && !quotas.tokensEnabled { toggleQuotas(); return }
-        quotas.refresh(); quotas.refreshTokens()
+        quotas.refresh(requested: ProviderSelection.optional.contains(dashboard.selected) ? [dashboard.selected] : nil); quotas.refreshTokens()
     }
     @objc private func toggleTokenStats() {
         if quotas.tokensEnabled { quotas.setTokensEnabled(false); return }
@@ -353,7 +389,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let removed = Set(["Disconnect live quotas", "Refresh quotas and tokens", "Stop reading local tokens"])
         self.verifyCondition(menu.items.allSatisfy { !removed.contains($0.title) }, "Redundant top-level actions are gone")
         let permissions = sections[1].last?.submenu
-        self.verifyCondition(permissions?.items.map(\.title) == ["Live quota access", "Local token statistics", "Contribute to global dashboard…", "Share community quota signals…", "Community sharing details…", "Run allowance calibration…", "Allowance calibration status…"], "Revocation remains in Data permissions")
+        self.verifyCondition(permissions?.items.map(\.title) == ["Live quota access", "Local token statistics", "Contribute to global dashboard…", "Share community quota signals…", "Connection details…", "Recover legacy reports…", "Run allowance calibration…", "Allowance calibration status…"], "Revocation remains in Data permissions")
         self.verifyCondition(permissions?.items.allSatisfy { $0.state == .off } == true, "Data permissions remain opt-in")
         menu.performActionForItem(at: 0)
         self.verifyCondition(!sleeping && catRest.manuallyAwake, "Manual wake still works")
@@ -373,7 +409,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         self.verifyCondition(status.button?.image != nil)
         dashboard.select(.grok)
         self.verifyCondition(dashboard.selected == .claude && quotas.displayedProvider == .claude)
-        self.verifyCondition(quotas.quotaProvidersForRefresh == [.codex, .claude])
+        self.verifyCondition(quotas.quotaProvidersForRefresh.isEmpty, "No active provider means no automatic quota requests")
         dashboard.setProviderVisible(.grok, true)
         self.verifyCondition(dashboard.visibleTabs == [.codex, .claude, .grok] && dashboard.selected == .grok && quotas.displayedProvider == .grok)
         self.verifyCondition(QuotaStore(defaults: settings).visibleProviders == [.codex, .claude, .grok])
@@ -381,7 +417,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         self.verifyCondition(dashboard.visibleTabs.filter { $0 == .grok }.count == 1)
         dashboard.setProviderVisible(.gemini, true)
         self.verifyCondition(dashboard.visibleTabs == [.codex, .claude, .gemini, .grok] && dashboard.selected == .gemini)
-        self.verifyCondition(!quotas.geminiBrowserAllowed && quotas.quotaProvidersForRefresh == [.codex, .claude, .grok])
+        self.verifyCondition(!quotas.geminiBrowserAllowed && quotas.quotaProvidersForRefresh.isEmpty)
         for provider in DashboardState.tabs {
             dashboard.select(provider)
             self.verifyCondition(dashboard.selected == provider)
@@ -544,14 +580,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Connect real subscription quotas?"
-        alert.informativeText = "The bundled open-source CodexBar CLI will contact providers using your existing Claude Code, Codex and Grok sign-ins. It may use their local login files, credential caches or owner CLIs. Provider helpers may read local usage metadata. Miso does not save raw responses or account emails.\n\nThis does not buy credits or run AI prompts. Gemini app browser access stays OFF until you separately approve it. No API-spend estimates are substituted for unavailable quotas.\n\nMiso also shares rounded 5-hour and weekly usage percentages with throttleindex.com to power the public index. No prompts, files, emails or credentials leave your Mac. Turn this off anytime in Data permissions.\n\nYou can disconnect any time. Existing in-flight requests may finish after disconnect, but their results will be discarded."
+        alert.informativeText = "The bundled open-source CodexBar CLI will contact providers using your existing Claude Code, Codex and Grok sign-ins. It may use their local login files, credential caches or owner CLIs. Provider helpers may read local usage metadata. Miso does not save raw responses or account emails.\n\nThis does not buy credits or run AI prompts. Gemini app browser access stays OFF until you separately approve it. No API-spend estimates are substituted for unavailable quotas.\n\nOn first connection, Miso enables sharing of rounded 5-hour and weekly usage percentages with throttleindex.com. If you previously stopped sharing, that choice is kept. Live usage may be published from a single reporting installation. No prompts, files, emails or credentials leave your Mac. Turn this off anytime in Data permissions.\n\nYou can disconnect any time. Existing in-flight requests may finish after disconnect, but their results will be discarded."
         alert.addButton(withTitle: "Enable live quotas")
         alert.addButton(withTitle: "Cancel")
         if alert.runModal() == .alertFirstButtonReturn {
             quotas.setEnabled(true)
             // Disclosed in the dialog above. Users can stop or delete from Data permissions.
-            if !sharing.enabled, let server = URL(string: CommunityPayload.defaultServer) {
-                try? sharing.enable(server: server, claudePlan: "unknown", codexPlan: "unknown")
+            if !sharing.enabled, settings.object(forKey: "communitySharingEnabled") == nil, let server = URL(string: CommunityPayload.defaultServer) {
+                do { try sharing.enable(server: server, claudePlan: "unknown", codexPlan: "unknown") }
+                catch { communityAlert("Local quotas connected; sharing is not connected", error.localizedDescription) }
             }
         }
     }
@@ -665,7 +702,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         popover.performClose(nil); NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Share quota signals with the community?"
-        alert.informativeText = "Off by default. Only fresh Claude/Codex five-hour and weekly quota percentages, rounded DOWN to 5%, plus reset/observation times rounded to five minutes, and your declared plan will be sent about every five minutes.\n\nNo email, account ID, provider token, prompts, files, or token logs are sent. A random signing identity stays in this Mac's Keychain. The server can link your submissions and sees your network address: pseudonymous, not untraceable. Readings expire after 48 hours; public cohorts need at least 5 installations. Signatures do not prove provider truth.\n\nEnter a server you trust. Stop sharing anytime; use Delete my shared readings to remove prior reports. Changing server requires deleting the previous identity first."
+        alert.informativeText = "Off by default. Only fresh Claude/Codex five-hour and weekly quota percentages, rounded DOWN to 5%, plus reset/observation times rounded to five minutes, and your declared plan will be sent about every five minutes.\n\nNo email, account ID, provider token, prompts, files, or token logs are sent. A random signing identity stays in an owner-only local Miso file. The server can link your submissions and sees your network address: pseudonymous, not untraceable. Readings expire after 48 hours; live usage is public from one reporting installation and can reveal that installation’s coarse usage. Allowance-change estimates need 10 matched installations. Signatures do not prove provider truth.\n\nEnter a server you trust. Stop sharing anytime; use Delete my shared readings to remove prior reports. Changing server requires deleting the previous identity first."
         alert.addButton(withTitle: "Agree and share"); alert.addButton(withTitle: "Cancel")
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 390, height: 136))
         let urlLabel = NSTextField(labelWithString: "Server (throttleindex.com by default; change only if you run your own)")
@@ -686,16 +723,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         do {
             try sharing.enable(server: server, claudePlan: claude.titleOfSelectedItem ?? "unknown", codexPlan: codex.titleOfSelectedItem ?? "unknown")
             if quotas.enabled { quotas.refresh() }
-            communityAlert("Community sharing enabled", "Only fresh supported quota windows will be sent. Open Data permissions → Community sharing details to see the transport status. Existing downloads are not retroactively opted in.")
-        } catch { communityAlert("Sharing stays off", "Unable to configure signing identity or server. If changing server, delete previously shared readings first. Check macOS Keychain access.") }
+            communityAlert("Community sharing enabled", "Only fresh supported quota windows will be sent. Open Data permissions → Connection details to see the transport status. Existing downloads are not retroactively opted in.")
+        } catch { communityAlert("Sharing stays off", "Unable to configure signing identity or server. If changing server, delete previously shared readings first. Open Connection details for the exact error. Legacy reporting-key recovery is separate.") }
     }
     private func communityAlert(_ title: String, _ detail: String) {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert(); alert.messageText = title; alert.informativeText = detail
         alert.addButton(withTitle: "OK"); alert.runModal()
     }
+    @objc private func recoverLegacyReports() {
+        let alert = NSAlert(); alert.messageText = "Delete reports from an older reporting key?"
+        alert.informativeText = "Only use this if you shared before 1.9.3. This explicit recovery may ask macOS to unlock Miso's old reporting key. It does not access provider credentials. The key is retained if deletion fails. Normal reporting never opens that prompt."
+        alert.addButton(withTitle: "Recover and delete legacy reports"); alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        Task { do { try await sharing.deleteLegacyReports(); communityAlert("Legacy recovery", sharing.status) }
+               catch { communityAlert("Legacy recovery not completed", error.localizedDescription) } }
+    }
     @objc private func communityDetails() {
-        communityAlert("Community quota sharing", "Sharing: \(sharing.enabled ? "on" : "off")\nServer: \(sharing.endpoint?.absoluteString ?? "not configured")\nStatus: \(sharing.status)\n\nLocal quota reads and community sharing require separate consent. Failed quota reads, stale/expired values, model-specific/file-upload limits without supported measured windows, and Gemini/Grok data are not uploaded. No file contents are inspected. OpenAI quota means Codex subscription windows, not every ChatGPT model. Your signing key never leaves this Mac.")
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+        let otherCopies = ["/Applications/Miso.app", NSHomeDirectory()+"/Applications/Miso.app"].filter {
+            $0 != Bundle.main.bundlePath && FileManager.default.fileExists(atPath: $0)
+        }
+        let providerLines = [QuotaProvider.claude, .codex].map { p in
+            let accepted = sharing.lastAccepted(p).map { DateFormatter.localizedString(from: $0, dateStyle: .short, timeStyle: .medium) } ?? "never"
+            return "\(p.name): \(quotas.headline(p))\nUpload: \(sharing.providerStatus[p] ?? "no attempt this launch")\nLast accepted: \(accepted)"
+        }.joined(separator: "\n\n")
+        var lines = ["Version: " + version, "Running: " + Bundle.main.bundlePath]
+        lines.append("Other app copies: " + (otherCopies.isEmpty ? "none found" : otherCopies.joined(separator: ", ")))
+        lines.append("Local quotas: " + (quotas.enabled ? "on" : "off"))
+        lines.append("Website sharing: " + (sharing.enabled ? "on" : "off"))
+        lines.append("Token-log statistics: " + (quotas.tokensEnabled ? "on" : "off"))
+        lines.append("Collector: " + (sharing.endpoint?.absoluteString ?? "not configured"))
+        lines.append("\n" + providerLines)
+        lines.append("\nSharing off prevents new uploads; old readings expire separately. Counts mean recent reporting installations, not online Macs or verified people.")
+        communityAlert("Miso connection details", lines.joined(separator: "\n"))
     }
     @objc private func deleteCommunityReadings() {
         popover.performClose(nil); NSApp.activate(ignoringOtherApps: true)

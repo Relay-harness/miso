@@ -7,6 +7,7 @@ final class DashboardState: ObservableObject {
     var visibleTabs: [QuotaProvider] { store.visibleProviders }
     let store: QuotaStore
     @Published var selected: QuotaProvider = .claude
+    @Published var reportingStatus = "Website sharing off · local tracking only"
     @Published var revision = 0
     @Published var now = Date()
     @Published var panelSize = DashboardLayout.preferredSize
@@ -136,6 +137,11 @@ struct RelayCatDashboard: View {
                     else { connectionState }
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            if !model.preview {
+                Text(model.reportingStatus).font(.system(size: 10)).foregroundStyle(muted)
+                    .lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4).help(model.reportingStatus).accessibilityLabel(model.reportingStatus)
+            }
             footer
         }
         .padding(.horizontal, 18)

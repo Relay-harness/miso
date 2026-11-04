@@ -281,3 +281,8 @@ print("\(checks) used-quota core checks passed")
 check(MisoUpdateChecker.newer("1.9.1", than: "1.9.0"), "newer Miso release is detected")
 check(MisoUpdateChecker.newer("v1.10.0", than: "1.9.9"), "version components compare numerically")
 check(!MisoUpdateChecker.newer("1.9.1", than: "1.9.1"), "current Miso release does not prompt")
+
+check(!MisoUpdateChecker.newer("1.9.bad", than: "1.9.3"), "malformed versions cannot offer updates")
+check(!MisoUpdateChecker.newer("1.10.0-beta", than: "1.9.3"), "unconfigured prerelease version formats are not treated as stable updates")
+let badReleaseBytes = Data("not-json".utf8)
+if case .unavailable = MisoUpdateChecker.parse(badReleaseBytes, current: "1.9.3") { check(true, "failed update response is unavailable, not up to date") } else { fatalError("invalid update response") }

@@ -21,7 +21,7 @@ export function createService({path=':memory:',minCohort=5,clock=()=>Date.now(),
  const server=http.createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');
   // The public dashboard may read aggregate, read-only endpoints directly. Writes never accept browser origins.
-  if(req.method==='GET'&&req.headers.origin==='https://www.throttleindex.com')res.setHeader('Access-Control-Allow-Origin','https://www.throttleindex.com');
+  if(req.method==='GET'&&['https://www.throttleindex.com','https://throttleindex.com'].includes(req.headers.origin)){res.setHeader('Access-Control-Allow-Origin',req.headers.origin);res.setHeader('Vary','Origin');}
   const reply=(status,body)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(body));};
   const pathname=req.url?.split('?')[0];
   if(req.method==='GET'&&pathname==='/api/community'){if(!cached||clock()-cachedAt>=15000){cached=store.aggregate();cachedAt=clock();}return reply(200,cached);}
