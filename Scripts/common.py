@@ -11,7 +11,7 @@ BUILD = ROOT / "build"
 
 def require_macos():
     if platform.system() != "Darwin":
-        raise SystemExit("Relay Cat requires macOS and Apple Command Line Tools.")
+        raise SystemExit("Miso requires macOS and Apple Command Line Tools.")
 
 
 def run(arguments, cwd=ROOT, timeout=300):

@@ -6,14 +6,14 @@ from common import ROOT, BUILD, require_macos, run, sha256
 
 def main():
     require_macos()
-    app = BUILD / "Relay Cat.app"
+    app = BUILD / "Miso.app"
     if not app.is_dir():
         raise SystemExit("Run python3 Scripts/build.py first.")
     run(["codesign", "--verify", "--strict", app])
     version = plistlib.loads((app / "Contents/Info.plist").read_bytes())["CFBundleShortVersionString"]
     destination = ROOT / "dist"
     destination.mkdir(exist_ok=True)
-    archive = destination / ("RelayCat-" + version + "-macos-arm64.zip")
+    archive = destination / ("Miso-" + version + "-macos-arm64.zip")
     if archive.exists():
         archive.unlink()
     run(["ditto", "-c", "-k", "--norsrc", "--noextattr", "--noqtn", "--keepParent", app, archive])

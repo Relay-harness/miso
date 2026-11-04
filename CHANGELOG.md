@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.9.1 - Miso name, no popup
+
+- Rename the app to Miso (`Miso.app`). Settings, sign-ins and sharing identities carry over.
+- Remove the launch invitation popup. Sharing with throttleindex.com turns on when you enable live quotas, as stated in that dialog. Turn it off in Data permissions.
+
 ## 1.9.0 - throttleindex.com community dashboard
 
 - Default community server is https://www.throttleindex.com. Quota sharing and calibration stay off until the user agrees.

@@ -1,8 +1,8 @@
 # Privacy
 
-## Contribution invitation
+## Sharing with throttleindex.com
 
-The updated source app offers a one-time invitation on its first launch to help the global dashboard. **Not now** is the default; Return and Escape decline. The app remembers the invitation version and review/dismissal choice only in local preferences. This is not sharing consent, a provider permission, a signup, or uploaded analytics. Existing contributors are not prompted again. The invitation never creates a signing identity, contacts a collector, reads an account, or starts calibration. Each review path leads to its own existing consent/configuration flow. A declined or cancelled invitation does not enable anything, and cancelling a subsequent review does not cause repeated invitations. Reopen **Data permissions → Contribute to global dashboard…** voluntarily. No public global collector is configured in this build, and already downloaded binaries are not changed remotely.
+From version 1.9.1, Miso has no separate invitation popup. When you click **Enable live quotas**, the same dialog tells you that Miso also shares rounded five-hour and weekly usage percentages with https://www.throttleindex.com, and sharing turns on together with live quotas. The declared plan is sent as `unknown`. No prompts, files, emails, account IDs or credentials are sent. Turn sharing off anytime in **Data permissions → Share community quota signals**, and use **Delete my shared readings** to remove what was sent. Installs that already had live quotas on before 1.9.1 are not enrolled automatically. Allowance calibration is never started automatically, because it uses subscription quota.
 
 ## Experimental allowance calibration (separate from native quota sharing)
 
@@ -22,27 +22,27 @@ A separate native Keychain item stores the calibration private key, collector bi
 
 ## Defaults
 
-The cat and timer work locally without account access. Live quota access, local token statistics, and Gemini browser access and community quota sharing are off until separately approved. No automatic login startup is installed. Relay Cat's inspected application code contains no advertising analytics, keyboard recording, or background workspace upload. Optional community quota telemetry is described below and is off by default.
+The cat and timer work locally without account access. Live quota access, local token statistics, and Gemini browser access and community quota sharing are off until separately approved. No automatic login startup is installed. Miso's inspected application code contains no advertising analytics, keyboard recording, or background workspace upload. Optional community quota telemetry is described below and is off by default.
 
 ## Live quotas
 
-After approval, the bundled CodexBar reader contacts enabled providers using existing owner-CLI/default-profile sign-ins. Relay Cat passes explicit HOME, macOS USER/LOGNAME, an allowlisted PATH, its isolated helper config and basic locale/temp settings. It does not pass through API-key/OAuth-token environment variables or custom account profiles. Provider owner CLIs may refresh their own credentials or read usage metadata as part of their normal operation.
+After approval, the bundled CodexBar reader contacts enabled providers using existing owner-CLI/default-profile sign-ins. Miso passes explicit HOME, macOS USER/LOGNAME, an allowlisted PATH, its isolated helper config and basic locale/temp settings. It does not pass through API-key/OAuth-token environment variables or custom account profiles. Provider owner CLIs may refresh their own credentials or read usage metadata as part of their normal operation.
 
 OpenAI refers to Codex subscription limits. Gemini refers to app quota and requires separate browser consent; do not assume it is Gemini CLI/API quota. Grok quota is not an API wallet. Provider-private endpoints, account plans, browser support and CLI formats can change.
 
 ## Local statistics and browser access
 
-Local statistics require approval to scan supported Claude/Codex local histories for today's numeric input/output totals. These may be incomplete or mixed-account and are not message/remaining-allowance counts. The helper may update its own usage cache or public pricing data. Relay Cat does not persist prompts or transcript text.
+Local statistics require approval to scan supported Claude/Codex local histories for today's numeric input/output totals. These may be incomplete or mixed-account and are not message/remaining-allowance counts. The helper may update its own usage cache or public pricing data. Miso does not persist prompts or transcript text.
 
-Gemini browser-session access is separately approved. Only approve expected helper/browser Safe Storage prompts. Relay Cat does not display cookie values. A denial or unsupported browser leaves quota unavailable.
+Gemini browser-session access is separately approved. Only approve expected helper/browser Safe Storage prompts. Miso does not display cookie values. A denial or unsupported browser leaves quota unavailable.
 
-## Data retained by Relay Cat
+## Data retained by Miso
 
-Preferences use `org.relayharness.relay-cat`. Non-secret helper config is stored under `~/Library/Application Support/Relay Cat/QuotaReader`. Ordinary quota forecasts, numeric readings, their in-memory account-scope digest, and timer state reset on quit. The separately consented native calibration identity retains its own hashed scope inside Keychain for historical pairing, as described above. Relay Cat does not persist raw quota JSON, account email addresses, OAuth tokens, or conversation content. Original owner CLIs and CodexBar may maintain their own credential/cache state; this policy does not claim to control their independent behavior or telemetry.
+Preferences use `org.relayharness.relay-cat`. Non-secret helper config is stored under `~/Library/Application Support/Miso/QuotaReader`. Ordinary quota forecasts, numeric readings, their in-memory account-scope digest, and timer state reset on quit. The separately consented native calibration identity retains its own hashed scope inside Keychain for historical pairing, as described above. Miso does not persist raw quota JSON, account email addresses, OAuth tokens, or conversation content. Original owner CLIs and CodexBar may maintain their own credential/cache state; this policy does not claim to control their independent behavior or telemetry.
 
 ## Optional community quota sharing (new source builds)
 
-This is a separate, explicit consent in Settings → Data permissions → Share community quota signals. Merely installing/using Relay Cat, signing into an owner CLI, or enabling local quota access does not enable it. Existing public downloads are not modified remotely.
+This is a separate, explicit consent in Settings → Data permissions → Share community quota signals. Merely installing/using Miso, signing into an owner CLI, or enabling local quota access does not enable it. Existing public downloads are not modified remotely.
 
 Only fresh, supported Claude/Codex primary/secondary five-hour and weekly windows are eligible. Uploads contain percentage **used** floored to 5%, reset/observation times floored to five-minute buckets, a self-declared plan, provider/window IDs, a random continuity series, public signing key, nonce and request timestamp. Unknown, model-specific extra windows, file-upload limits, stale/cached readings, failed polls and Gemini/Grok measurements are not sent. No file contents are inspected. Account emails/IDs, local account-scope digests, OAuth tokens, raw reader JSON, prompts, code and token logs are not included.
 
@@ -62,9 +62,9 @@ The public page requests aggregated community quota data from its collector orig
 
 ## Revoke and remove
 
-Use Settings → Data permissions to stop future quota reads, token scans, or approved Gemini browser imports. In-flight subprocesses may finish; generation checks prevent revoked results from publishing. Disconnecting Relay Cat does not delete shared provider credentials or log you out of other tools.
+Use Settings → Data permissions to stop future quota reads, token scans, or approved Gemini browser imports. In-flight subprocesses may finish; generation checks prevent revoked results from publishing. Disconnecting Miso does not delete shared provider credentials or log you out of other tools.
 
-Quit and delete Relay Cat.app to remove the app. Optional non-secret cleanup is `defaults delete org.relayharness.relay-cat` and removal of `~/Library/Application Support/Relay Cat`. Do not delete provider CLI credentials unless you intend to log those CLIs out. Use provider/browser session controls to revoke shared authentication.
+Quit and delete Miso.app to remove the app. Optional non-secret cleanup is `defaults delete org.relayharness.relay-cat` and removal of `~/Library/Application Support/Miso`. Do not delete provider CLI credentials unless you intend to log those CLIs out. Use provider/browser session controls to revoke shared authentication.
 
 ## Testing and reports
 

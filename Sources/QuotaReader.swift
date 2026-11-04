@@ -234,7 +234,7 @@ final class QuotaStore {
         guard enabled, !refreshing, !connectingBrowser else { return }
         let locations: (URL, URL, URL)
         do { locations = try self.locations() }
-        catch { for p in QuotaProvider.allCases { problems[p] = "Quota reader is unavailable. Reinstall Relay Cat." }; onChange?(); return }
+        catch { for p in QuotaProvider.allCases { problems[p] = "Quota reader is unavailable. Reinstall Miso." }; onChange?(); return }
         refreshing = true; lastAttempt = Date()
         let token = generation
         let jobs = quotaProvidersForRefresh.map { ($0, environment(config: locations.2, provider: $0)) }

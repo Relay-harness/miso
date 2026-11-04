@@ -3,21 +3,21 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>Relay Cat</string>
+	<string>Miso</string>
 	<key>CFBundleExecutable</key>
-	<string>RelayCat</string>
+	<string>Miso</string>
 	<key>CFBundleIconFile</key>
-	<string>RelayCat.icns</string>
+	<string>Miso.icns</string>
 	<key>CFBundleIdentifier</key>
 	<string>org.relayharness.relay-cat</string>
 	<key>CFBundleName</key>
-	<string>Relay Cat</string>
+	<string>Miso</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.9.0</string>
+	<string>1.9.1</string>
 	<key>CFBundleVersion</key>
-	<string>11</string>
+	<string>12</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>

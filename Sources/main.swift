@@ -72,8 +72,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         timer = Timer(timeInterval: 0.25, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
         RunLoop.main.add(timer!, forMode: .common)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(tick), name: NSWorkspace.didWakeNotification, object: nil)
-        // After launch, ask once. Test mode returned above and never presents onboarding.
-        DispatchQueue.main.async { [weak self] in self?.offerContributionInvitation() }
     }
 
     @objc private func tick() {
@@ -107,7 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let focusText = clock.isRunning ? " " + (clock.isPaused ? "Ⅱ " : "") + clock.label(at: now) : ""
         status.button?.title = focusText + quotas.barText(at: now)
         let mood = asleep ? "sleeping" : "keeping you company"
-        let description = "Relay Cat is \(mood)" + (clock.isRunning ? " · \(clock.phase == .focus ? "Focus" : "Break") \(clock.label(at: now))" : "")
+        let description = "Miso is \(mood)" + (clock.isRunning ? " · \(clock.phase == .focus ? "Focus" : "Break") \(clock.label(at: now))" : "")
         status.button?.toolTip = now < messageUntil ? message : description
         status.button?.setAccessibilityLabel(description + (quotas.enabled ? " · " + quotas.displayedProvider.name + " " + quotas.headline(quotas.displayedProvider) : ""))
     }
@@ -115,7 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     func menuWillOpen(_ menu: NSMenu) {
         menuOpen = true
         menu.removeAllItems()
-        let nap = add(menu, sleeping ? "Wake Relay Cat up" : "Let Relay Cat nap", #selector(toggleNap(_:)))
+        let nap = add(menu, sleeping ? "Wake Miso up" : "Let Miso nap", #selector(toggleNap(_:)))
         nap.tag = sleeping ? 1 : 0 // Follow the displayed action even if the cooldown ends while the menu is open.
         let colors = NSMenu(title: "Coat color")
         for (index, name) in ["Ginger", "Silver", "Midnight"].enumerated() {
@@ -167,8 +165,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let help = add(menu, "Selected provider sign-in help…", #selector(quotaSignInHelp(_:)))
         help.representedObject = dashboard.selected.rawValue
         menu.addItem(.separator())
-        add(menu, "About Relay Cat…", #selector(about))
-        add(menu, "Quit Relay Cat", #selector(quit), key: "q")
+        add(menu, "About Miso…", #selector(about))
+        add(menu, "Quit Miso", #selector(quit), key: "q")
     }
     func menuDidClose(_ menu: NSMenu) { menuOpen = false }
 
@@ -190,8 +188,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     @objc private func about() {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "Meet Relay Cat"
-        alert.informativeText = "A tiny, original pixel cat for your menu bar.\n\nRelay Cat naps after 90 seconds of inactivity, or during a five-minute focus break.\n\nOptional real subscription quotas use the bundled CodexBar reader and your existing sign-ins. No API-cost estimates are shown as quota. Gemini browser access requires separate consent. No raw quota responses or account emails are saved by Relay Cat.\n\nNo advertising analytics or keyboard recording. Community quota sharing is off by default and requires separate consent. OpenAI and Claude tabs, optional Gemini and Grok, quota pace forecasts and optional local token stats. Version 1.9.0 · Independent of Mac Pet."
+        alert.messageText = "Meet Miso"
+        alert.informativeText = "A tiny, original pixel cat for your menu bar.\n\nMiso naps after 90 seconds of inactivity, or during a five-minute focus break.\n\nOptional real subscription quotas use the bundled CodexBar reader and your existing sign-ins. No API-cost estimates are shown as quota. Gemini browser access requires separate consent. No raw quota responses or account emails are saved by Miso.\n\nNo advertising analytics or keyboard recording. Community quota sharing is off by default and requires separate consent. OpenAI and Claude tabs, optional Gemini and Grok, quota pace forecasts and optional local token stats. Version 1.9.1 · Independent of Mac Pet."
         alert.addButton(withTitle: "Lovely")
         alert.runModal()
     }
@@ -263,7 +261,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Read local input and output totals?"
-        alert.informativeText = "The bundled reader will scan Claude and Codex usage logs for today's input/output totals on this Mac. These logs may include multiple provider accounts. No transcript text or raw results are saved by Relay Cat. The reader may update its own usage cache and public model prices.\n\nToken pace is informational. Subscription limit-time estimates use provider quota changes, not guessed token allowances. Gemini and Grok token logs are not supported here yet."
+        alert.informativeText = "The bundled reader will scan Claude and Codex usage logs for today's input/output totals on this Mac. These logs may include multiple provider accounts. No transcript text or raw results are saved by Miso. The reader may update its own usage cache and public model prices.\n\nToken pace is informational. Subscription limit-time estimates use provider quota changes, not guessed token allowances. Gemini and Grok token logs are not supported here yet."
         alert.addButton(withTitle: "Enable token stats")
         alert.addButton(withTitle: "Cancel")
         if alert.runModal() == .alertFirstButtonReturn { quotas.setTokensEnabled(true) }
@@ -324,12 +322,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         measuredPreview.sampleReading = QuotaReading(provider: .claude, capturedAt: fixture.capturedAt, source: "fixture", windows: noReset, lastKnown: false, scopeKey: "synthetic-account")
         self.verifyCondition(measuredPreview.limitNotice == "Limit ETA: reset time unavailable", "Missing reset metadata cannot produce an exhaustion estimate")
         menuWillOpen(menu)
-        self.verifyCondition(menu.items.prefix(3).map(\.title) == ["Wake Relay Cat up", "Coat color", "Animate cat"], "Pet controls lead settings")
+        self.verifyCondition(menu.items.prefix(3).map(\.title) == ["Wake Miso up", "Coat color", "Animate cat"], "Pet controls lead settings")
         let sections = menu.items.split(whereSeparator: { $0.isSeparatorItem }).map(Array.init)
         self.verifyCondition(sections.count == 5, "Settings have five concise sections")
         self.verifyCondition(sections[1].first?.title == "Show quota beside cat", "Quota display is in the second section")
         self.verifyCondition(sections[3].map(\.title) == ["Open selected provider usage page…", "Selected provider sign-in help…"], "Provider links are the penultimate section")
-        self.verifyCondition(sections[4].map(\.title) == ["About Relay Cat…", "Quit Relay Cat"], "About and Quit stay last")
+        self.verifyCondition(sections[4].map(\.title) == ["About Miso…", "Quit Miso"], "About and Quit stay last")
         let removed = Set(["Disconnect live quotas", "Refresh quotas and tokens", "Stop reading local tokens"])
         self.verifyCondition(menu.items.allSatisfy { !removed.contains($0.title) }, "Redundant top-level actions are gone")
         let permissions = sections[1].last?.submenu
@@ -338,7 +336,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         menu.performActionForItem(at: 0)
         self.verifyCondition(!sleeping && catRest.manuallyAwake, "Manual wake still works")
         menuWillOpen(menu)
-        self.verifyCondition(menu.items.first?.title == "Let Relay Cat nap", "Manual nap label remains")
+        self.verifyCondition(menu.items.first?.title == "Let Miso nap", "Manual nap label remains")
         menu.performActionForItem(at: 0)
         self.verifyCondition(sleeping && !catRest.manuallyAwake, "Manual nap still works")
         menuDidClose(menu)
@@ -399,7 +397,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         popover.behavior = .applicationDefined // Test only: hold visible while measuring.
         // Measure only after AppKit reports a shown popover, not after an arbitrary delay.
         pendingPopoverCheck = {
-            self.verifyCondition(self.catRest.isInspecting && !self.sleeping, "Shown usage wakes Relay Cat")
+            self.verifyCondition(self.catRest.isInspecting && !self.sleeping, "Shown usage wakes Miso")
             host.view.layoutSubtreeIfNeeded()
             guard let window = host.view.window else {
                 FileHandle.standardError.write(Data("Popover content is not attached to a window after show\n".utf8))
@@ -524,10 +522,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Connect real subscription quotas?"
-        alert.informativeText = "The bundled open-source CodexBar CLI will contact providers using your existing Claude Code, Codex and Grok sign-ins. It may use their local login files, credential caches or owner CLIs. Provider helpers may read local usage metadata. Relay Cat does not save raw responses or account emails.\n\nThis does not buy credits or run AI prompts. Gemini app browser access stays OFF until you separately approve it. No API-spend estimates are substituted for unavailable quotas.\n\nYou can disconnect any time. Existing in-flight requests may finish after disconnect, but their results will be discarded."
+        alert.informativeText = "The bundled open-source CodexBar CLI will contact providers using your existing Claude Code, Codex and Grok sign-ins. It may use their local login files, credential caches or owner CLIs. Provider helpers may read local usage metadata. Miso does not save raw responses or account emails.\n\nThis does not buy credits or run AI prompts. Gemini app browser access stays OFF until you separately approve it. No API-spend estimates are substituted for unavailable quotas.\n\nMiso also shares rounded 5-hour and weekly usage percentages with throttleindex.com to power the public index. No prompts, files, emails or credentials leave your Mac. Turn this off anytime in Data permissions.\n\nYou can disconnect any time. Existing in-flight requests may finish after disconnect, but their results will be discarded."
         alert.addButton(withTitle: "Enable live quotas")
         alert.addButton(withTitle: "Cancel")
-        if alert.runModal() == .alertFirstButtonReturn { quotas.setEnabled(true) }
+        if alert.runModal() == .alertFirstButtonReturn {
+            quotas.setEnabled(true)
+            // Disclosed in the dialog above. Users can stop or delete from Data permissions.
+            if !sharing.enabled, let server = URL(string: CommunityPayload.defaultServer) {
+                try? sharing.enable(server: server, claudePlan: "unknown", codexPlan: "unknown")
+            }
+        }
     }
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(refreshQuotas) || menuItem.action == #selector(connectGemini) {
@@ -549,7 +553,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Allow Gemini browser-session access?"
-        alert.informativeText = "First sign in to the intended account at gemini.google.com/usage. The CodexBar helper will read Gemini session cookies from a supported browser and query Gemini's actual app quota. This is not Gemini CLI or API usage.\n\nmacOS may ask for browser Safe Storage Keychain permission. Only approve the expected CodexBarCLI prompt. No cookie values are displayed or saved by Relay Cat. Once allowed, Gemini checks run every five minutes until you disconnect. If browser access is denied or unsupported, quota stays unavailable."
+        alert.informativeText = "First sign in to the intended account at gemini.google.com/usage. The CodexBar helper will read Gemini session cookies from a supported browser and query Gemini's actual app quota. This is not Gemini CLI or API usage.\n\nmacOS may ask for browser Safe Storage Keychain permission. Only approve the expected CodexBarCLI prompt. No cookie values are displayed or saved by Miso. Once allowed, Gemini checks run every five minutes until you disconnect. If browser access is denied or unsupported, quota stays unavailable."
         alert.addButton(withTitle: "Allow Gemini access")
         alert.addButton(withTitle: "Cancel")
         if alert.runModal() == .alertFirstButtonReturn { quotas.connectGeminiBrowser() }
@@ -561,9 +565,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         alert.messageText = provider.name + " quota connection"
         let instruction: String
         switch provider {
-        case .claude: instruction = "Sign in with Claude Code: open `claude` in Terminal and use /login, then confirm /usage works. Relay Cat uses that owner CLI; it does not silently enable direct Claude Keychain access."
+        case .claude: instruction = "Sign in with Claude Code: open `claude` in Terminal and use /login, then confirm /usage works. Miso uses that owner CLI; it does not silently enable direct Claude Keychain access."
         case .codex: instruction = "Run `codex login` in Terminal with your intended subscription account. This reads Codex's default local login, not custom CODEX_HOME profiles. It cannot show every ChatGPT model's remaining messages."
-        case .gemini: instruction = "Open gemini.google.com/usage in your intended browser account, then choose Connect Gemini browser session from Relay Cat. Google must expose supported windows for that account. Gemini CLI quotas are not substituted."
+        case .gemini: instruction = "Open gemini.google.com/usage in your intended browser account, then choose Connect Gemini browser session from Miso. Google must expose supported windows for that account. Gemini CLI quotas are not substituted."
         case .grok: instruction = "Run `grok login` in Terminal with your intended subscription account, then refresh. No browser-cookie fallback is enabled for Grok. A balance without a measured usage window stays unavailable."
         }
         alert.informativeText = instruction + "\n\nRefresh every five minutes. Values older than ten minutes, reset-expired windows, missing values and failed refreshes never become a fresh 100%. The dashboard updates after each refresh. Provider endpoints can change."
@@ -690,7 +694,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             communityAlert("Calibration unavailable", "Install and sign into Claude Code's default subscription profile first. No CLI is downloaded, no sign-in is started, and no workload runs automatically."); return
         }
         let reader = resources.appendingPathComponent("QuotaReader/CodexBarCLI")
-        guard FileManager.default.isExecutableFile(atPath: reader.path) else { communityAlert("Calibration unavailable", "The bundled quota reader is missing. Rebuild or reinstall Relay Cat."); return }
+        guard FileManager.default.isExecutableFile(atPath: reader.path) else { communityAlert("Calibration unavailable", "The bundled quota reader is missing. Rebuild or reinstall Miso."); return }
         let alert = NSAlert()
         alert.messageText = "Run an experimental Claude allowance calibration?"
         alert.informativeText = "This is NOT passive tracking. It runs 6 or 12 fixed public sorting tasks using Claude Sonnet 4.5, with tools, MCP, custom hooks and session persistence disabled. It takes roughly 6–15 minutes and CONSUMES YOUR SUBSCRIPTION QUOTA. It may reach a provider limit. A task count is not a token/cost guarantee. No automatic retries or background benchmarks. Stop in Data permissions at any time.\n\nUse the account exclusively for this session: no other Claude Code, browser, desktop or mobile activity. Do not change account, plan or model. Unknown identity/authentication, resets, incomplete task output and insufficient quota movement are rejected. No raw prompts, outputs, files or credentials are uploaded.\n\nOnly after another confirmation: signed, pseudonymous interval quota/task/token/cache counters and declared tier go to your chosen collector for SEVEN DAYS, separately from ordinary quota-sharing consent. A separate Keychain identity links your reports and the collector sees your IP. This estimates effective allowance; it cannot prove official provider limits."
