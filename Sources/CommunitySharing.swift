@@ -1,6 +1,5 @@
 import Foundation
 import CryptoKit
-import Security
 
 /// Explicitly opt-in, pseudonymous community transport. Provider credentials never enter this type.
 struct CommunityWindow: Codable, Sendable {
@@ -52,8 +51,6 @@ private final class CommunityRedirectBlocker: NSObject, URLSessionTaskDelegate, 
 @MainActor
 final class CommunitySharing {
     private let defaults: UserDefaults
-    private let service = "org.relayharness.relay-cat.community"
-    private let account = "signing-v1"
     private var generation = 0
     private var deleting = false
     private var lastBucket: [QuotaProvider: Int64] = [:]
@@ -69,7 +66,10 @@ final class CommunitySharing {
     }()
     private(set) var status = "Sharing is off."
     var enabled: Bool { defaults.bool(forKey: "communitySharingEnabled") && defaults.integer(forKey: "communityConsentVersion") == 1 }
-    var hasIdentity: Bool { defaults.bool(forKey: "communityIdentityCreated") }
+    var hasIdentity: Bool { FileManager.default.fileExists(atPath: identityURL.path) }
+    private var identityURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Relay Cat/Community/signing-v1.key")
+    }
     var endpoint: URL? { defaults.string(forKey: "communityServer").flatMap(CommunityPayload.endpoint) }
     init(defaults: UserDefaults = .standard) { self.defaults = defaults; if enabled { status = "Consent retained. Waiting for a fresh quota reading." } }
     func enable(server: URL, claudePlan: String, codexPlan: String) throws {
@@ -87,16 +87,19 @@ final class CommunitySharing {
         tasks.values.forEach { $0.cancel() }; tasks.removeAll(); lastBucket.removeAll()
         status = "Sharing stopped. Previously sent readings remain until deleted or expired."
     }
+    // This is a random pseudonymous signing key, not an account credential. Store it in
+    // an owner-only app-support file so sharing never triggers a Keychain authentication prompt.
     private func key(create: Bool) throws -> Curve25519.Signing.PrivateKey {
-        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
-        var result: CFTypeRef?
-        let code = SecItemCopyMatching(query.merging([kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]) { _, new in new } as CFDictionary, &result)
-        if code == errSecSuccess, let data = result as? Data { defaults.set(true, forKey: "communityIdentityCreated"); return try Curve25519.Signing.PrivateKey(rawRepresentation: data) }
-        guard code == errSecItemNotFound, create else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(code)) }
+        let file = identityURL
+        if let data = try? Data(contentsOf: file) {
+            return try Curve25519.Signing.PrivateKey(rawRepresentation: data)
+        }
+        guard create else { throw CocoaError(.fileNoSuchFile) }
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true,
+                                                attributes: [.posixPermissions: 0o700])
         let value = Curve25519.Signing.PrivateKey()
-        let attributes = query.merging([kSecValueData as String: value.rawRepresentation, kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]) { _, new in new }
-        let saved = SecItemAdd(attributes as CFDictionary, nil)
-        guard saved == errSecSuccess else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(saved)) }
+        try value.rawRepresentation.write(to: file, options: [.atomic])
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
         defaults.set(true, forKey: "communityIdentityCreated")
         return value
     }
@@ -112,7 +115,7 @@ final class CommunitySharing {
         // Missing scope cannot support a longitudinal forecast: start a new series each time.
         if reading.scopeKey == nil || series[reading.provider] == nil { series[reading.provider] = UUID().uuidString }
         do {
-            let identity = try key(create: false)
+            let identity = try key(create: true)
             let provider = reading.provider.rawValue
             let requestedPlan = defaults.string(forKey: reading.provider == .claude ? "communityClaudePlan" : "communityCodexPlan") ?? "unknown"
             let allowed = reading.provider == .claude ? ["unknown", "pro", "max", "team", "enterprise"] : ["unknown", "plus", "pro", "team", "enterprise"]
@@ -156,8 +159,9 @@ final class CommunitySharing {
                 do {
                     let (_, response) = try await session.data(for: request)
                     guard (response as? HTTPURLResponse)?.statusCode == 200 else { status = "Deletion not confirmed. Identity kept so you can retry."; completion(false); return }
-                    let removed = SecItemDelete([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account] as CFDictionary)
-                    guard removed == errSecSuccess || removed == errSecItemNotFound else { status = "Server readings deleted, but local identity could not be removed. Retry deletion."; completion(false); return }
+                    do { try FileManager.default.removeItem(at: self.identityURL) }
+                    catch where (error as? CocoaError)?.code == .fileNoSuchFile { }
+                    catch { status = "Server readings deleted, but local identity could not be removed. Retry deletion."; completion(false); return }
                     defaults.set(false, forKey: "communityIdentityCreated"); status = "Shared readings deleted. Sharing is off."
                     completion(true)
                 } catch { status = "Deletion not confirmed. Identity kept so you can retry."; completion(false) }

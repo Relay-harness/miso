@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.3 - No Keychain prompt for quota sharing
+
+- Community quota sharing now stores its random pseudonymous signing key in an owner-only local app-support file instead of Keychain. Enabling live quotas does not request a Keychain password.
+
 ## 1.9.2 - Update and provider activity
 
 - Older Miso versions check the published GitHub release at launch and offer an explicit **Update Miso** button. No update installs automatically.
