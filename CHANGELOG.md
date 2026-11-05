@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased - Daily check-ins and member counts
+## 1.9.7 - Daily check-ins and member counts
 
 - Report once right after install, then at most once every 24 hours, even when Claude Code or Codex isn't open. No more live reporting.
 - The collector counts every Mac that has ever checked in (members) until a signed deletion, and `/api/pulse` returns member counts plus the median of each member's latest reading.
