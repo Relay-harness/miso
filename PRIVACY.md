@@ -2,7 +2,7 @@
 
 ## Sharing with throttleindex.com
 
-From version 1.9.1, Miso has no separate invitation popup. When you click **Enable live quotas**, the same dialog tells you that Miso also shares rounded five-hour and weekly usage percentages with https://www.throttleindex.com, and sharing turns on together with live quotas. The declared plan is sent as `unknown`. No prompts, files, emails, account IDs or credentials are sent. Turn sharing off anytime in **Data permissions → Share community quota signals**, and use **Delete my shared readings** to remove what was sent. Installs that already had live quotas on before 1.9.1 are not enrolled automatically. Allowance calibration is never started automatically, because it uses subscription quota.
+Miso turns on live quotas and shares rounded five-hour and weekly usage percentages with https://www.throttleindex.com from the first launch, and shows a one-time notice saying so. The declared plan is sent as `unknown`. No prompts, files, emails, account IDs or credentials are sent. Turn sharing off anytime by unchecking **Share usage with throttleindex** in Miso's menu, and use **Delete my shared readings** to remove what was sent. If you previously turned quota access or sharing off, an update keeps that choice. Allowance calibration is never started automatically, because it uses subscription quota.
 
 ## Experimental allowance calibration (separate from native quota sharing)
 
@@ -40,15 +40,15 @@ Gemini browser-session access is separately approved. Only approve expected help
 
 Preferences use `org.relayharness.relay-cat`. Non-secret helper config is stored under `~/Library/Application Support/Relay Cat/QuotaReader`. Ordinary quota forecasts, numeric readings, their in-memory account-scope digest, and timer state reset on quit. The separately consented native calibration identity retains its own hashed scope inside Keychain for historical pairing, as described above. Miso does not persist raw quota JSON, account email addresses, OAuth tokens, or conversation content. Original owner CLIs and CodexBar may maintain their own credential/cache state; this policy does not claim to control their independent behavior or telemetry.
 
-## Optional community quota sharing (new source builds)
+## Community quota sharing (on by default)
 
-Website sharing is disclosed in **Connect**. First connection enables it with local quota access; if you previously stopped sharing, reconnecting or updating preserves that choice. You can independently stop sharing in Data permissions. Installation alone does not upload anything.
+Website sharing and local quota access are on from the first launch, disclosed in a one-time notice. If you previously stopped sharing or turned quota access off, updating preserves that choice. Uncheck **Share usage with throttleindex** in Miso's menu to stop.
 
 Only numeric Claude/Codex standard quota windows are sent: percentages rounded down to steps of 5%, bucketed observation/reset times, a declared plan (or `unknown`), random series and installation public signing key. No credentials, prompts, transcripts, email, account IDs or token logs are uploaded. The collector sees network addresses; reports are pseudonymous, not anonymous.
 
 **Live usage is public from one reporting installation.** With one participant, that participant's coarse usage is visible. Public counts mean distinct signing identities that reported a valid five-hour reading in the last ten minutes, not currently online Macs or verified people. Provider-wide allowance-change evidence remains a separate calibration system requiring at least ten matched installations.
 
-Ordinary reporting uses a random signing key in `~/Library/Application Support/Relay Cat/Community/signing-v1.key`, created with owner-only permissions. Updates reuse it. If no file exists, Miso tries to migrate its pre-1.9.3 Keychain key without opening authentication UI. If macOS denies that non-interactive migration, reporting stops with a recovery status instead of silently creating another identity. **Recover legacy reports…** is a separate, explicit action that can ask macOS to unlock that old Miso key; it accesses no provider credentials. Older reports can otherwise expire under retention. A corrupt key is not overwritten automatically.
+Ordinary reporting uses a random signing key in `~/Library/Application Support/Relay Cat/Community/signing-v1.key`, created with owner-only permissions. Updates reuse it. If no file exists, Miso tries to migrate its pre-1.9.3 Keychain key without opening authentication UI. If macOS denies that non-interactive migration, reporting stops with a recovery status instead of silently creating another identity. Older reports from a legacy key expire under retention. A corrupt key is not overwritten automatically.
 
 Reports use the canonical collector `https://api.throttleindex.com`; saved `https://www.throttleindex.com` roots refer to that same collector and are mapped to it. Custom collectors are unchanged. HTTPS redirects are rejected. Cookies and URL caches are disabled. Transient failures retry a bounded number of times while the reading is fresh; server acknowledgements, not send attempts, mark a bucket accepted. The app stores per-provider last-acknowledgement timestamps locally, not raw quota responses.
 
@@ -60,7 +60,7 @@ The public page requests aggregated community quota data from its collector orig
 
 ## Revoke and remove
 
-Use Settings → Data permissions to stop future quota reads, token scans, or approved Gemini browser imports. In-flight subprocesses may finish; generation checks prevent revoked results from publishing. Disconnecting Miso does not delete shared provider credentials or log you out of other tools.
+Use Miso's settings menu to stop sharing (**Share usage with throttleindex**), token scans (**Local token statistics**) or approved Gemini browser imports. Disconnect live quotas from the popover. In-flight subprocesses may finish; generation checks prevent revoked results from publishing. Disconnecting Miso does not delete shared provider credentials or log you out of other tools.
 
 Quit and delete Miso.app to remove the app. Optional non-secret cleanup is `defaults delete org.relayharness.relay-cat` and removal of `~/Library/Application Support/Miso`. Do not delete provider CLI credentials unless you intend to log those CLIs out. Use provider/browser session controls to revoke shared authentication.
 

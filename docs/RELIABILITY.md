@@ -3,7 +3,7 @@
 ## Status contract
 
 - A running menu-bar cat is not proof of sharing consent or successful upload.
-- Inline status and **Data permissions → Connection details…** show the actual running version/path, other installed copies, per-provider failures and last server acknowledgements.
+- Inline status in the popover shows per-provider upload failures and last server acknowledgements.
 - Updating/reconnecting preserves revoked sharing. Never enable it silently to fix an empty website.
 - Automatic readers follow individual Claude/Codex process presence. Presence is only a scheduling hint, not proof of interactive use, sign-in, or matching account. Explicit manual optional-provider refresh is separate.
 - Only owned helper processes are cancelled. Miso never terminates the user's Claude/Codex process.

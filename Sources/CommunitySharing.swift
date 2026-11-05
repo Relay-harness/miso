@@ -70,7 +70,7 @@ struct CommunityIdentityStore {
         if code == errSecItemNotFound { return nil }
         guard code == errSecSuccess, let data = result as? Data else {
             throw NSError(domain: "MisoIdentity", code: Int(code), userInfo: [NSLocalizedDescriptionKey:
-                "Legacy reporting key needs recovery. No password prompt was opened. Use Recover legacy reports in Data permissions."])
+                "Legacy reporting key needs recovery. No password prompt was opened. Reporting is paused for this identity."])
         }
         return data
     }

@@ -72,7 +72,7 @@ These uncertainty bounds are conditional on the workload/coverage assumptions. T
 ## Native Claude calibration: how to use it
 
 1. Build the updated app from this source with `python3 Scripts/build.py --offline` if the verified reader is cached. Existing public downloads do not gain this feature remotely.
-2. Open `build/Relay Cat.app`. In the cat's settings, choose **Data permissions → Run allowance calibration…**.
+2. Open `build/Relay Cat.app`. In the cat's settings, choose **Run allowance calibration…**.
 3. Read the separate seven-day policy and workload warning. This consumes subscription quota. It is not passive collection. Enter your trusted collector root, such as `http://127.0.0.1:8787` for local testing, and declare the precise Claude tier.
 4. Select a hard count of 6 or 12 fixed public sorting tasks. Confirm no other Claude activity will use this account, including browser/mobile/desktop and other CLI sessions.
 5. The app first checks a supported first-party Claude subscription sign-in and fresh identified quota. API-key/third-party/unknown auth, missing email identity, wrong account/tier or insufficient safe headroom fail before tasks start.

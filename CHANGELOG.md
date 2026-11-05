@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased - Share by default
+
+- Read live quotas and share rounded usage with throttleindex.com from the first launch, with a one-time notice that can turn sharing off. Installs that never chose are enrolled on update; an explicit earlier "off" is kept.
+- Replace the Data permissions submenu and consent dialogs with one **Share usage with throttleindex** checkbox, plus **Delete my shared readings**. Remove the contribution invitation.
+- Let usage that rises within the same five-minute window update the live bars (client resend + collector replacement, still one reading per Mac per window).
+
 ## 1.9.5 - Visible update and refresh, steadier live data
 
 - Show an **Update x.y.z** button in the popover footer when a newer release exists. The update dialog now opens in front of other windows.

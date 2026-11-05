@@ -65,7 +65,7 @@ The fully qualified install command automatically records trust for this specifi
 
 ## Connection and update status
 
-Open Miso → Data permissions → **Connection details…** to see the actual running version/path, other installed app copies, sharing choice, per-provider error and last server acknowledgement. A cat in the menu bar does not by itself mean website sharing is on.
+The popover footer shows the sharing state, per-provider upload status and last server acknowledgement; the menu's **Share usage with throttleindex** checkbox shows whether sharing is on. A cat in the menu bar does not by itself mean website sharing is on.
 
 Keep one managed copy. If a manual copy in `~/Applications` coexists with the Homebrew copy in `/Applications`, quit both and choose which installation to keep before updating. Do not delete preferences or reporting keys to fix an app-path issue.
 

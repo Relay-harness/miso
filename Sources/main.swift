@@ -68,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         sharing.onChange = { [weak self] in self?.syncConnectionStatus() }
         syncConnectionStatus()
         quotas.onFreshReading = { [weak self] reading in self?.sharing.submit(reading) }
+        if !CommandLine.arguments.contains("--verify-quota-menu") { enableSharingByDefault() }
         if !CommandLine.arguments.contains("--verify-quota-menu") { activity.refreshIfDue(interval: 0) { [weak self] active in self?.quotas.setActiveProviders(active) } }
         if !CommandLine.arguments.contains("--verify-quota-menu") { MisoUpdateChecker.check { [weak self] result in self?.handleUpdateResult(result, manual: false) } }
         quotas.refreshIfDue()
@@ -77,8 +78,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             DispatchQueue.main.async { self.verifyQuotaMenu(menu) }
             return
         }
-        // README promise: the first launch of an updated build offers (never grants) dashboard contribution.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.offerContributionInvitation() }
         timer = Timer(timeInterval: 0.25, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
         RunLoop.main.add(timer!, forMode: .common)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(didWake), name: NSWorkspace.didWakeNotification, object: nil)
@@ -154,23 +153,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         add(menu, "Open at login", #selector(toggleOpenAtLogin)).state = !CommandLine.arguments.contains("--verify-quota-menu") && SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(.separator())
         add(menu, "Show quota beside cat", #selector(toggleQuotaInBar)).state = quotas.showInBar ? .on : .off
-        // Keep revocation available without repeating connection/refresh commands in the top-level menu.
-        let permissions = NSMenu(title: "Data permissions")
-        add(permissions, "Live quota access", #selector(toggleQuotas)).state = quotas.enabled ? .on : .off
-        add(permissions, "Local token statistics", #selector(toggleTokenStats)).state = quotas.tokensEnabled ? .on : .off
-        add(permissions, "Contribute to global dashboard…", #selector(reviewDashboardContribution))
-        add(permissions, "Share community quota signals…", #selector(toggleCommunitySharing)).state = sharing.enabled ? .on : .off
-        add(permissions, "Connection details…", #selector(communityDetails))
-        add(permissions, "Recover legacy reports…", #selector(recoverLegacyReports))
-        add(permissions, calibration.running ? "Stop allowance calibration" : "Run allowance calibration…", #selector(toggleAllowanceCalibration))
-        add(permissions, "Allowance calibration status…", #selector(calibrationDetails))
-        if calibration.transport.hasIdentity { add(permissions, "Delete calibration reports…", #selector(deleteCalibrationReports)) }
-        if sharing.hasIdentity { add(permissions, "Delete my shared readings…", #selector(deleteCommunityReadings)) }
+        // Sharing is on from install; one plain checkbox turns it off. No permissions submenu or consent dialogs.
+        add(menu, "Share usage with throttleindex", #selector(toggleCommunitySharing)).state = sharing.enabled ? .on : .off
+        if sharing.hasIdentity { add(menu, "Delete my shared readings…", #selector(deleteCommunityReadings)) }
+        add(menu, "Local token statistics", #selector(toggleTokenStats)).state = quotas.tokensEnabled ? .on : .off
         if quotas.enabled && quotas.visibleProviders.contains(.gemini) {
-            add(permissions, "Gemini browser access", #selector(connectGemini)).state = quotas.geminiBrowserAllowed ? .on : .off
+            add(menu, "Gemini browser access", #selector(connectGemini)).state = quotas.geminiBrowserAllowed ? .on : .off
         }
-        let access = NSMenuItem(title: "Data permissions…", action: nil, keyEquivalent: "")
-        access.submenu = permissions; menu.addItem(access)
+        add(menu, calibration.running ? "Stop allowance calibration" : "Run allowance calibration…", #selector(toggleAllowanceCalibration))
+        if calibration.transport.hasIdentity { add(menu, "Delete calibration reports…", #selector(deleteCalibrationReports)) }
         menu.addItem(.separator())
         if Date() < messageUntil, let message { menu.addItem(NSMenuItem(title: message, action: nil, keyEquivalent: "")) }
         if clock.isRunning {
@@ -258,7 +249,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Meet Miso"
-        alert.informativeText = "A tiny, original pixel cat for your menu bar.\n\nMiso naps after 90 seconds of inactivity, or during a five-minute focus break.\n\nOptional real subscription quotas use the bundled CodexBar reader and your existing sign-ins. No API-cost estimates are shown as quota. Gemini browser access requires separate consent. No raw quota responses or account emails are saved by Miso.\n\nNo advertising analytics or keyboard recording. The Connect dialog discloses optional website sharing. A previously revoked sharing choice stays off. See Data permissions for current status. OpenAI and Claude tabs, optional Gemini and Grok, quota pace forecasts and optional local token stats. Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown") · Independent of Mac Pet."
+        alert.informativeText = "A tiny, original pixel cat for your menu bar.\n\nMiso naps after 90 seconds of inactivity, or during a five-minute focus break.\n\nReal subscription quotas use the bundled CodexBar reader and your existing sign-ins. No API-cost estimates are shown as quota. Gemini browser access requires separate consent. No raw quota responses or account emails are saved by Miso.\n\nNo advertising analytics or keyboard recording. Miso shares rounded 5-hour and weekly usage with throttleindex.com; uncheck Share usage with throttleindex to stop. OpenAI and Claude tabs, optional Gemini and Grok, quota pace forecasts and optional local token stats. Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown") · Independent of Mac Pet."
         alert.addButton(withTitle: "Lovely")
         alert.runModal()
     }
@@ -364,22 +355,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         verificationCount += 1
     }
     private func verifyQuotaMenu(_ menu: NSMenu) {
-        self.verifyCondition(ContributionInvitation.shouldOffer(in: settings, alreadyContributing: false), "First updated launch offers contribution without granting consent")
-        let invitation = contributionInvitationAlert()
-        self.verifyCondition(invitation.buttons.map(\.title) == ["Not now", "Review quota sharing…", "Review Claude calibration…"], "Invitation offers separate review paths and a clear decline")
-        self.verifyCondition(invitation.buttons[0].keyEquivalent == "\r" && invitation.buttons.dropFirst().allSatisfy { $0.keyEquivalent.isEmpty }, "Return defaults to Not now, never contribution")
-        self.verifyCondition(invitation.informativeText.contains("throttleindex.com") && invitation.informativeText.contains("uses subscription quota"), "Invitation discloses collector availability and workload cost")
-        invitation.layout()
-        if let view = invitation.window.contentView {
-            view.layoutSubtreeIfNeeded()
-            if let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
-                view.cacheDisplay(in: view.bounds, to: bitmap)
-                try? bitmap.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: "contribution-invitation.png"))
-            }
-        }
-        ContributionInvitation.record(.notNow, in: settings)
-        self.verifyCondition(!ContributionInvitation.shouldOffer(in: settings, alreadyContributing: false), "Declining prevents repeated automatic invitations")
-        self.verifyCondition(!sharing.enabled && !sharing.hasIdentity && !calibration.running && !calibration.transport.hasIdentity && !quotas.enabled, "Invitation rendering and decline do not read accounts, create keys, share, or start a benchmark")
+        // The UI test suite starts from an empty preference domain and never runs the install-time default.
+        self.verifyCondition(!sharing.enabled && !sharing.hasIdentity && !calibration.running && !calibration.transport.hasIdentity && !quotas.enabled, "Test launch reads no accounts, creates no keys and shares nothing")
         let measuredPreview = DashboardState.sample(store: quotas)
         measuredPreview.selected = .claude
         self.verifyCondition(measuredPreview.lanes()[0].1?.usedText == "39%", "Quota uses consumed rather than remaining percentage")
@@ -401,9 +378,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         self.verifyCondition(sections[4].map(\.title) == ["Check for updates…", "About Miso…", "Quit Miso"], "Update check, About and Quit stay last")
         let removed = Set(["Disconnect live quotas", "Refresh quotas and tokens", "Stop reading local tokens"])
         self.verifyCondition(menu.items.allSatisfy { !removed.contains($0.title) }, "Redundant top-level actions are gone")
-        let permissions = sections[1].last?.submenu
-        self.verifyCondition(permissions?.items.map(\.title) == ["Live quota access", "Local token statistics", "Contribute to global dashboard…", "Share community quota signals…", "Connection details…", "Recover legacy reports…", "Run allowance calibration…", "Allowance calibration status…"], "Revocation remains in Data permissions")
-        self.verifyCondition(permissions?.items.allSatisfy { $0.state == .off } == true, "Data permissions remain opt-in")
+        self.verifyCondition(sections[1].map(\.title) == ["Show quota beside cat", "Share usage with throttleindex", "Local token statistics", "Run allowance calibration…"], "Sharing is one plain checkbox; no Data permissions submenu")
+        self.verifyCondition(menu.items.allSatisfy { $0.submenu?.title != "Data permissions" && !$0.title.hasPrefix("Data permissions") }, "Data permissions submenu is gone")
         menu.performActionForItem(at: 0)
         self.verifyCondition(!sleeping && catRest.manuallyAwake, "Manual wake still works")
         menuWillOpen(menu)
@@ -593,12 +569,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Connect real subscription quotas?"
-        alert.informativeText = "The bundled open-source CodexBar CLI will contact providers using your existing Claude Code, Codex and Grok sign-ins. It may use their local login files, credential caches or owner CLIs. Provider helpers may read local usage metadata. Miso does not save raw responses or account emails.\n\nThis does not buy credits or run AI prompts. Gemini app browser access stays OFF until you separately approve it. No API-spend estimates are substituted for unavailable quotas.\n\nOn first connection, Miso enables sharing of rounded 5-hour and weekly usage percentages with throttleindex.com. If you previously stopped sharing, that choice is kept. Live usage may be published from a single reporting installation. No prompts, files, emails or credentials leave your Mac. Turn this off anytime in Data permissions.\n\nYou can disconnect any time. Existing in-flight requests may finish after disconnect, but their results will be discarded."
+        alert.informativeText = "The bundled open-source CodexBar CLI will contact providers using your existing Claude Code, Codex and Grok sign-ins. It may use their local login files, credential caches or owner CLIs. Provider helpers may read local usage metadata. Miso does not save raw responses or account emails.\n\nThis does not buy credits or run AI prompts. Gemini app browser access stays OFF until you separately approve it. No API-spend estimates are substituted for unavailable quotas.\n\nOn first connection, Miso enables sharing of rounded 5-hour and weekly usage percentages with throttleindex.com. If you previously stopped sharing, that choice is kept. Live usage may be published from a single reporting installation. No prompts, files, emails or credentials leave your Mac. Turn this off anytime: uncheck Share usage with throttleindex.\n\nYou can disconnect any time. Existing in-flight requests may finish after disconnect, but their results will be discarded."
         alert.addButton(withTitle: "Enable live quotas")
         alert.addButton(withTitle: "Cancel")
         if alert.runModal() == .alertFirstButtonReturn {
             quotas.setEnabled(true)
-            // Disclosed in the dialog above. Users can stop or delete from Data permissions.
+            // Disclosed in the dialog above. Users can stop or delete from the settings menu.
             if !sharing.enabled, settings.object(forKey: "communitySharingEnabled") == nil, let server = URL(string: CommunityPayload.defaultServer) {
                 do { try sharing.enable(server: server, claudePlan: "unknown", codexPlan: "unknown") }
                 catch { communityAlert("Local quotas connected; sharing is not connected", error.localizedDescription) }
@@ -647,97 +623,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         alert.runModal()
     }
 
-    private var alreadyContributing: Bool { sharing.enabled || sharing.hasIdentity || calibration.transport.hasIdentity }
-    private func contributionInvitationAlert() -> NSAlert {
-        let alert = NSAlert()
-        alert.messageText = "Help Miso’s global dashboard?"
-        alert.informativeText = "Help people compare Claude and Codex subscription allowances.\n\nClaude calibration runs a fixed workload and uses subscription quota. Basic quota sharing sends coarse usage and reset readings; those alone cannot prove allowance changes.\n\nNothing starts until you review and confirm separately. Contributing is optional.\n\nResults appear on throttleindex.com. You can choose Not now."
-        // Fail closed: AppKit's default/abort response is the decline action.
-        alert.addButton(withTitle: "Not now")
-        alert.addButton(withTitle: "Review quota sharing…")
-        alert.addButton(withTitle: "Review Claude calibration…")
-        alert.buttons[0].keyEquivalent = "\r"
-        alert.buttons[1].keyEquivalent = ""
-        alert.buttons[2].keyEquivalent = ""
-        return alert
-    }
-    private func runContributionInvitation(_ alert: NSAlert) -> NSApplication.ModalResponse {
-        // AppKit can remap modal abort/keyboard responses. Intercept dismissal keys
-        // only for this synchronous invitation and normalize them to Not now.
-        var declinedByKeyboard = false
-        let monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            if ContributionInvitation.isDismissalKey(event.keyCode) {
-                declinedByKeyboard = true
-                NSApp.stopModal(withCode: .alertFirstButtonReturn)
-                return nil
-            }
-            return event
+    /// Fresh installs read quotas and share rounded usage with throttleindex.com from the first launch.
+    /// An explicit earlier "off" (quota access or sharing) is kept; nothing is re-enabled behind the user's back.
+    private func enableSharingByDefault() {
+        if settings.object(forKey: "realQuotasEnabled") == nil { quotas.setEnabled(true) }
+        if quotas.enabled, settings.object(forKey: "communitySharingEnabled") == nil,
+           let server = URL(string: CommunityPayload.defaultServer) {
+            try? sharing.enable(server: server, claudePlan: "unknown", codexPlan: "unknown")
         }
-        defer { if let monitor { NSEvent.removeMonitor(monitor) } }
-        let response = alert.runModal()
-        return declinedByKeyboard ? .alertFirstButtonReturn : response
+        guard sharing.enabled, !settings.bool(forKey: "sharingNoticeShown") else { return }
+        settings.set(true, forKey: "sharingNoticeShown")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.showSharingNotice() }
     }
-    private func offerContributionInvitation() {
-        guard NSApp.modalWindow == nil, !calibration.running else { return }
-        if alreadyContributing {
-            ContributionInvitation.record(.alreadyContributing, in: settings)
-            return
-        }
-        guard ContributionInvitation.shouldOffer(in: settings, alreadyContributing: false) else { return }
-        reviewDashboardContribution()
-    }
-    @objc private func reviewDashboardContribution() {
-        guard !calibration.running else {
-            communityAlert("Calibration is running", "Stop or finish the current calibration before reviewing contribution options.")
-            return
-        }
-        popover.performClose(nil)
+    private func showSharingNotice() {
+        guard NSApp.modalWindow == nil, sharing.enabled else { return }
         NSApp.activate(ignoringOtherApps: true)
-        let response = runContributionInvitation(contributionInvitationAlert())
-        let choice: ContributionInvitation.Choice
-        switch response {
-        case .alertThirdButtonReturn: choice = .reviewCalibration
-        case .alertSecondButtonReturn: choice = .reviewQuotaSharing
-        default: choice = .notNow
-        }
-        ContributionInvitation.record(choice, in: settings)
-        // These existing flows still require their full, independent consent and configuration.
-        switch choice {
-        case .reviewCalibration: toggleAllowanceCalibration()
-        case .reviewQuotaSharing:
-            if sharing.enabled { communityDetails() } else { toggleCommunitySharing() }
-        case .notNow, .alreadyContributing: break
-        }
+        let alert = NSAlert()
+        alert.messageText = "Miso shares your usage with throttleindex.com"
+        alert.informativeText = "Your Claude and Codex 5-hour and weekly usage, rounded down to 5%, powers the live bars on throttleindex.com. No prompts, files, emails, account IDs or credentials leave your Mac.\n\nTurn it off anytime: uncheck Share usage with throttleindex in Miso's menu."
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Turn off sharing")
+        if alert.runModal() == .alertSecondButtonReturn { sharing.stop() }
     }
-
     @objc private func toggleCommunitySharing() {
         if sharing.enabled { sharing.stop(); return }
-        popover.performClose(nil); NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.messageText = "Share quota signals with the community?"
-        alert.informativeText = "Off by default. Only fresh Claude/Codex five-hour and weekly quota percentages, rounded DOWN to 5%, plus reset/observation times rounded to five minutes, and your declared plan will be sent about every five minutes.\n\nNo email, account ID, provider token, prompts, files, or token logs are sent. A random signing identity stays in an owner-only local Miso file. The server can link your submissions and sees your network address: pseudonymous, not untraceable. Readings expire after 48 hours; live usage is public from one reporting installation and can reveal that installation’s coarse usage. Allowance-change estimates need 10 matched installations. Signatures do not prove provider truth.\n\nEnter a server you trust. Stop sharing anytime; use Delete my shared readings to remove prior reports. Changing server requires deleting the previous identity first."
-        alert.addButton(withTitle: "Agree and share"); alert.addButton(withTitle: "Cancel")
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 390, height: 136))
-        let urlLabel = NSTextField(labelWithString: "Server (throttleindex.com by default; change only if you run your own)")
-        urlLabel.frame = NSRect(x: 0, y: 113, width: 390, height: 18); view.addSubview(urlLabel)
-        let url = NSTextField(string: sharing.endpoint?.absoluteString ?? CommunityPayload.defaultServer)
-        url.placeholderString = CommunityPayload.defaultServer
-        url.frame = NSRect(x: 0, y: 82, width: 390, height: 26); view.addSubview(url)
-        let claude = NSPopUpButton(frame: NSRect(x: 180, y: 43, width: 210, height: 26)); claude.addItems(withTitles: ["unknown", "pro", "max", "team", "enterprise"])
-        let codex = NSPopUpButton(frame: NSRect(x: 180, y: 6, width: 210, height: 26)); codex.addItems(withTitles: ["unknown", "plus", "pro", "team", "enterprise"])
-        let claudeLabel = NSTextField(labelWithString: "Claude plan (declared)"); claudeLabel.frame = NSRect(x: 0, y: 47, width: 177, height: 18)
-        let codexLabel = NSTextField(labelWithString: "Codex plan (declared)"); codexLabel.frame = NSRect(x: 0, y: 10, width: 177, height: 18)
-        [claudeLabel, codexLabel, claude, codex].forEach { view.addSubview($0) }
-        alert.accessoryView = view; alert.window.initialFirstResponder = url
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        guard let server = CommunityPayload.endpoint(url.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-            communityAlert("Sharing stays off", "Use an HTTPS server root without credentials, query, or path. HTTP is accepted only for local development."); return
-        }
+        // Turning sharing back on also needs fresh readings, so quota access comes on with it.
+        if !quotas.enabled { quotas.setEnabled(true) }
+        let server = sharing.endpoint ?? URL(string: CommunityPayload.defaultServer)!
         do {
-            try sharing.enable(server: server, claudePlan: claude.titleOfSelectedItem ?? "unknown", codexPlan: codex.titleOfSelectedItem ?? "unknown")
-            if quotas.enabled { quotas.refresh() }
-            communityAlert("Community sharing enabled", "Only fresh supported quota windows will be sent. Open Data permissions → Connection details to see the transport status. Existing downloads are not retroactively opted in.")
-        } catch { communityAlert("Sharing stays off", "Unable to configure signing identity or server. If changing server, delete previously shared readings first. Open Connection details for the exact error. Legacy reporting-key recovery is separate.") }
+            try sharing.enable(server: server, claudePlan: "unknown", codexPlan: "unknown")
+            quotas.refresh(requested: quotas.userRequestedProviders)
+        } catch { communityAlert("Sharing stays off", "Miso could not set up its reporting identity: " + error.localizedDescription) }
     }
     private func communityAlert(_ title: String, _ detail: String) {
         NSApp.activate(ignoringOtherApps: true)
@@ -793,7 +709,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         guard FileManager.default.isExecutableFile(atPath: reader.path) else { communityAlert("Calibration unavailable", "The bundled quota reader is missing. Rebuild or reinstall Miso."); return }
         let alert = NSAlert()
         alert.messageText = "Run an experimental Claude allowance calibration?"
-        alert.informativeText = "This is NOT passive tracking. It runs 6 or 12 fixed public sorting tasks using Claude Sonnet 4.5, with tools, MCP, custom hooks and session persistence disabled. It takes roughly 6–15 minutes and CONSUMES YOUR SUBSCRIPTION QUOTA. It may reach a provider limit. A task count is not a token/cost guarantee. No automatic retries or background benchmarks. Stop in Data permissions at any time.\n\nUse the account exclusively for this session: no other Claude Code, browser, desktop or mobile activity. Do not change account, plan or model. Unknown identity/authentication, resets, incomplete task output and insufficient quota movement are rejected. No raw prompts, outputs, files or credentials are uploaded.\n\nOnly after another confirmation: signed, pseudonymous interval quota/task/token/cache counters and declared tier go to your chosen collector for SEVEN DAYS, separately from ordinary quota-sharing consent. A separate Keychain identity links your reports and the collector sees your IP. This estimates effective allowance; it cannot prove official provider limits."
+        alert.informativeText = "This is NOT passive tracking. It runs 6 or 12 fixed public sorting tasks using Claude Sonnet 4.5, with tools, MCP, custom hooks and session persistence disabled. It takes roughly 6–15 minutes and CONSUMES YOUR SUBSCRIPTION QUOTA. It may reach a provider limit. A task count is not a token/cost guarantee. No automatic retries or background benchmarks. Stop from the settings menu at any time.\n\nUse the account exclusively for this session: no other Claude Code, browser, desktop or mobile activity. Do not change account, plan or model. Unknown identity/authentication, resets, incomplete task output and insufficient quota movement are rejected. No raw prompts, outputs, files or credentials are uploaded.\n\nOnly after another confirmation: signed, pseudonymous interval quota/task/token/cache counters and declared tier go to your chosen collector for SEVEN DAYS, separately from ordinary quota-sharing consent. A separate Keychain identity links your reports and the collector sees your IP. This estimates effective allowance; it cannot prove official provider limits."
         alert.addButton(withTitle: "Agree and run bounded session"); alert.addButton(withTitle: "Cancel")
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 430, height: 150))
         let label = NSTextField(labelWithString: "Server (throttleindex.com by default; change only if you run your own)")
@@ -842,7 +758,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         return alert.runModal() == .alertFirstButtonReturn && check.state == .on
     }
     @objc private func calibrationDetails() {
-        communityAlert("Allowance calibration", "Running: \(calibration.running ? "yes" : "no")\nServer: \(calibration.transport.endpoint?.absoluteString ?? "not configured")\nStatus: \(calibration.status)\n\nNothing starts automatically. Each bounded session requires consent and a second coverage confirmation before upload. Ordinary quota readings and daily token totals are not calibration evidence. Stop a running session from Data permissions. Delete calibration reports separately from ordinary shared readings.")
+        communityAlert("Allowance calibration", "Running: \(calibration.running ? "yes" : "no")\nServer: \(calibration.transport.endpoint?.absoluteString ?? "not configured")\nStatus: \(calibration.status)\n\nNothing starts automatically. Each bounded session requires consent and a second coverage confirmation before upload. Ordinary quota readings and daily token totals are not calibration evidence. Stop a running session from the settings menu. Delete calibration reports separately from ordinary shared readings.")
     }
     @objc private func deleteCalibrationReports() {
         guard !calibration.running else { communityAlert("Stop calibration first", "Stop the active session and wait for it to finish before deleting its identity."); return }

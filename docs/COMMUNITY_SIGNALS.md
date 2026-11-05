@@ -15,13 +15,13 @@ The code does not prove a provider reduced context, identify unique humans, meas
 - Default profiles only, as described in [PROVIDERS.md](PROVIDERS.md).
 - Gemini/Grok community uploads and unknown/model-specific/file-upload windows are not supported. They are not guessed from token totals. No files are read by this sharing feature.
 
-Local live-quota access and community sharing are separate permissions. Existing releases do not gain telemetry retroactively.
+Live-quota access and community sharing are on from the first launch, with a one-time notice. An explicit earlier "off" is kept on update.
 
 ## Native sharing
 
 Build with `python3 Scripts/build.py --offline` if the pinned reader is already cached, or follow the ordinary build instructions. The artifact is `build/Relay Cat.app` (ad-hoc signed, not a notarized public release).
 
-In the new app, open **Settings → Data permissions → Share community quota signals**. Read the consent, enter a trusted collector root URL, and select self-declared plans (or unknown). HTTPS is required except for loopback development (`http://127.0.0.1:8787`). Enable live quotas separately to obtain fresh readings.
+Sharing starts automatically against `https://api.throttleindex.com` with plan `unknown`. To point a build at a local collector, set the `communityServer` preference (for example `defaults write org.relayharness.relay-cat communityServer http://127.0.0.1:8787`) before first launch. HTTPS is required except for loopback development. Uncheck **Share usage with throttleindex** to stop.
 
 `CommunitySharing.swift` receives only successfully parsed quota readings through `QuotaStore.onFreshReading`. It accepts fresh, noncached Claude/Codex primary/secondary windows with explicit 300- or 10080-minute durations and nonexpired reset metadata. Extra/model-specific/unknown windows are skipped. No raw JSON, title, account digest, email, OAuth credential, token totals, prompt, hostname, or project path is sent.
 

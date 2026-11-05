@@ -5,7 +5,7 @@
 
 Miso is a small macOS cat that sits on your menu bar to tell you how much of your **subscription quota is used**, **reset times**, and a cautious estimate of **time to the next limit**.
 
-Miso is made to be quiet and respectful. No analytics, keyboard recording, feeding mechanics, or achievements. Community quota sharing is separately opt-in in new source builds.
+Miso is made to be quiet and respectful. No analytics, keyboard recording, feeding mechanics, or achievements. Rounded quota usage is shared with throttleindex.com by default; one menu checkbox turns it off.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/usage-dark.png">
@@ -22,15 +22,15 @@ Miso is made to be quiet and respectful. No analytics, keyboard recording, feedi
 - Click the cat to wake it and open usage. Close the popover and it naps after about two seconds. Manual wake/nap remains an override. Native light/dark mode and Reduce Motion are respected.
 - Optional local input/output token statistics live on a separate Stats view. These are not subscription messages or allowance denominators.
 
-## Opt-in community quota dashboard (source-build feature)
+## Community quota dashboard
 
 Miso checks for a newer published release at launch and offers a release notice with an explicit **Copy Homebrew update command** or **View release** button. It never downloads or installs an update by itself. Homebrew users update with `brew upgrade --cask relay-harness/tap/relay-cat`.
 
-When you click **Enable live quotas**, Miso also shares rounded five-hour and weekly usage percentages with [throttleindex.com](https://www.throttleindex.com). The dialog says so, and there is no separate popup. Turn sharing off or delete shared readings in **Data permissions**. Allowance calibration is optional and always user-started, because it uses subscription quota.
+From the first launch, Miso reads live quotas and shares rounded five-hour and weekly usage percentages with [throttleindex.com](https://www.throttleindex.com), with a one-time notice. Uncheck **Share usage with throttleindex** in the menu to stop, or use **Delete my shared readings**. Allowance calibration is optional and always user-started, because it uses subscription quota.
 
-The `dashboard/` web app now targets experimental five-hour and weekly effective-allowance changes, rather than treating quota used as a limit cut. Its signed estimator and optional native Claude Sonnet 4.5 calibration adapter are implemented. Calibration is user-started, runs a bounded public workload that consumes quota, and requires separate consent plus coverage confirmation before upload. Ordinary quota reports cannot populate allowance-change results; native Codex calibration and real-provider validation remain unfinished. See [measurement method, calibration controls and limitations](docs/ALLOWANCE_CHANGES.md). Legacy signed usage cohorts from consenting Relay Cat installations remain available separately. Sharing is off by default and separate from local quota access. Provider credentials stay on the Mac. Small cohorts remain hidden; no demo participants are seeded. Internet discussions are secondary.
+The `dashboard/` web app now targets experimental five-hour and weekly effective-allowance changes, rather than treating quota used as a limit cut. Its signed estimator and optional native Claude Sonnet 4.5 calibration adapter are implemented. Calibration is user-started, runs a bounded public workload that consumes quota, and requires separate consent plus coverage confirmation before upload. Ordinary quota reports cannot populate allowance-change results; native Codex calibration and real-provider validation remain unfinished. See [measurement method, calibration controls and limitations](docs/ALLOWANCE_CHANGES.md). Legacy signed usage cohorts from consenting Relay Cat installations remain available separately. Sharing is on by default and can be turned off from the menu. Provider credentials stay on the Mac. Small cohorts remain hidden; no demo participants are seeded. Internet discussions are secondary.
 
-This is pseudonymous, client-reported measurement, not provider attestation or a verified count of people. The collector and updated app must be built/configured; no public deployment or retroactive opt-in of existing downloads is included. See [setup, algorithm and privacy](docs/COMMUNITY_SIGNALS.md).
+This is pseudonymous, client-reported measurement, not provider attestation or a verified count of people. Existing installs that never chose are enrolled on update; an explicit earlier "off" is kept. See [setup, algorithm and privacy](docs/COMMUNITY_SIGNALS.md).
 
 **Message counts:** the current quota feed does not expose exact human messages used or a fixed messages-left allowance. Stats says **Not reported**. Tokens and tool/API requests are not converted into guessed message counts.
 
@@ -71,14 +71,14 @@ To install, quit any older Relay Cat instance and copy `build/Miso.app` to your 
 
 ## Connect
 
-The cat and timer work offline. Quota access starts **off**. Click **Connect** and review the consent dialog.
+The cat and timer work offline. Quota access and sharing start **on** at first launch; turn either off from the menu or popover.
 
 - **Claude:** install Claude Code and authenticate its default profile with `claude auth login`.
 - **OpenAI:** install Codex and authenticate with `codex login`. This is Codex quota, not a universal ChatGPT model/message counter or API balance.
 - **Gemini:** add the tab, sign in to the Gemini app in a supported browser, then separately approve browser access. Gemini CLI/API quota is not substituted.
 - **Grok:** add the tab and use the supported Grok CLI's subscription OAuth sign-in. API wallet credit is not substituted.
 
-The footer refresh button also supports **Cmd-R**. Settings → **Data permissions…** lets you revoke live quota, local-stat, and separately approved Gemini access. No login or API key is shipped with Relay Cat. See [authentication and provider limits](docs/PROVIDERS.md).
+The footer refresh button also supports **Cmd-R**. The settings menu turns off sharing, local token statistics and separately approved Gemini access. No login or API key is shipped with Relay Cat. See [authentication and provider limits](docs/PROVIDERS.md).
 
 ## Tests and packaging
 
@@ -107,4 +107,4 @@ Independent community software, not affiliated with Anthropic, OpenAI, Google, x
 
 ### Reporting reliability
 
-Miso shows an inline website status and **Connection details…** with per-provider last acknowledgements. Revoked sharing is preserved across reconnects and updates. Quota/token workers are scoped to the detected provider and pause on sleep; the website shows recent reports, not guaranteed online presence. One valid opted-in report can fill a live usage bar. Calibration is separate and never inferred from usage.
+Miso shows an inline website status with per-provider last acknowledgements. Revoked sharing is preserved across reconnects and updates. Quota/token workers are scoped to the detected provider and pause on sleep; the website shows recent reports, not guaranteed online presence. One valid report can fill a live usage bar. Calibration is separate and never inferred from usage.
