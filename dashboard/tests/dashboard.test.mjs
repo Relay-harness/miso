@@ -18,7 +18,7 @@ test('allowance baseline, windows, uncertainty and bar scale do not display quot
  assert.equal(await p.getByText('Why this exists').count(),0);await p.close();
 });
 test('insufficient and stale evidence never falls back to usage percentages or sample counts',async()=>{
- const p=await browser.newPage();await setup(p,{ready:false});await p.getByText('Waiting for a fresh opted-in Miso report.',{exact:true}).first().waitFor();assert.deepEqual(await p.locator('.gauge-number strong').allTextContents(),['-','-']);assert.equal(await p.locator('.checkin-row,.quota-segment.is-filled').count(),0);assert.deepEqual(await p.locator('.gauge-number strong').allTextContents(),['-','-']);
+ const p=await browser.newPage();await setup(p,{ready:false});await p.getByText('Waiting for a fresh Miso report.',{exact:true}).first().waitFor();assert.deepEqual(await p.locator('.gauge-number strong').allTextContents(),['-','-']);assert.equal(await p.locator('.checkin-row,.quota-segment.is-filled').count(),0);assert.deepEqual(await p.locator('.gauge-number strong').allTextContents(),['-','-']);
  await p.unroute('**/api/allowance');await p.route('**/api/allowance',r=>r.fulfill({json:aggregate({stale:true})}));await p.reload();await p.getByText('Allowance evidence is stale. Live usage is separate.',{exact:false}).waitFor();assert.equal(await p.locator('.gauge-number strong').first().innerText(),'-');await p.close();
 });
 test('usage-only or malformed API responses cannot become allowance evidence',async()=>{

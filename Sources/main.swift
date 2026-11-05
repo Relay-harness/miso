@@ -627,8 +627,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     /// An explicit earlier "off" (quota access or sharing) is kept; nothing is re-enabled behind the user's back.
     private func enableSharingByDefault() {
         if settings.object(forKey: "realQuotasEnabled") == nil { quotas.setEnabled(true) }
+        // A collector chosen before first launch (e.g. a local one) is kept; otherwise throttleindex.com.
         if quotas.enabled, settings.object(forKey: "communitySharingEnabled") == nil,
-           let server = URL(string: CommunityPayload.defaultServer) {
+           let server = sharing.endpoint ?? URL(string: CommunityPayload.defaultServer) {
             try? sharing.enable(server: server, claudePlan: "unknown", codexPlan: "unknown")
         }
         guard sharing.enabled, !settings.bool(forKey: "sharingNoticeShown") else { return }
@@ -640,7 +641,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Miso shares your usage with throttleindex.com"
-        alert.informativeText = "Your Claude and Codex 5-hour and weekly usage, rounded down to 5%, powers the live bars on throttleindex.com. No prompts, files, emails, account IDs or credentials leave your Mac.\n\nTurn it off anytime: uncheck Share usage with throttleindex in Miso's menu."
+        alert.informativeText = "Your Claude and Codex 5-hour and weekly usage, rounded down to 5%, powers the live bars on throttleindex.com. No prompts, files, emails, account IDs or credentials leave your Mac.\n\nTurn it off anytime: click the cat in the menu bar, then the gear icon, and uncheck Share usage with throttleindex."
         alert.addButton(withTitle: "OK")
         alert.addButton(withTitle: "Turn off sharing")
         if alert.runModal() == .alertSecondButtonReturn { sharing.stop() }

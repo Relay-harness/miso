@@ -2,7 +2,7 @@
 
 ## Sharing with throttleindex.com
 
-Miso turns on live quotas and shares rounded five-hour and weekly usage percentages with https://www.throttleindex.com from the first launch, and shows a one-time notice saying so. The declared plan is sent as `unknown`. No prompts, files, emails, account IDs or credentials are sent. Turn sharing off anytime by unchecking **Share usage with throttleindex** in Miso's menu, and use **Delete my shared readings** to remove what was sent. If you previously turned quota access or sharing off, an update keeps that choice. Allowance calibration is never started automatically, because it uses subscription quota.
+Miso turns on live quotas and shares rounded five-hour and weekly usage percentages with https://www.throttleindex.com from the first launch, and shows a one-time notice saying so. The declared plan is sent as `unknown`. No prompts, files, emails, account IDs or credentials are sent. Turn sharing off anytime by unchecking **Share usage with throttleindex** in Miso's settings menu (gear icon in the popover, or right-click the cat), and use **Delete my shared readings** to remove what was sent. If you previously turned quota access or sharing off, an update keeps that choice. Allowance calibration is never started automatically, because it uses subscription quota.
 
 ## Experimental allowance calibration (separate from native quota sharing)
 

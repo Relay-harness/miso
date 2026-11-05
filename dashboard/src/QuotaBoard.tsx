@@ -28,7 +28,10 @@ export function QuotaBoard(){
  useEffect(()=>{if(demo)return;let active=true;let request:AbortController|null=null;
   async function load(){if(document.visibilityState!=='visible')return;request?.abort();const c=new AbortController();request=c;const timeout=window.setTimeout(()=>c.abort(),8000);
    try{const r=await fetch(API+'/api/downloads',{credentials:'omit',signal:c.signal});const v=r.ok?await r.json():null;if(active&&v&&Number.isSafeInteger(v.total)&&v.total>0)setDownloads(v.total);}catch{}finally{window.clearTimeout(timeout);}}
-  void load();const t=window.setInterval(()=>void load(),600000);return()=>{active=false;request?.abort();window.clearInterval(t);};
+  // A page opened in a background tab skips the first load; fetch as soon as it becomes visible.
+  const onVisible=()=>{if(document.visibilityState==='visible')void load();};
+  void load();const t=window.setInterval(()=>void load(),600000);document.addEventListener('visibilitychange',onVisible);
+  return()=>{active=false;request?.abort();window.clearInterval(t);document.removeEventListener('visibilitychange',onVisible);};
  },[demo]);
  const [pulseError,setPulseError]=useState(false),[pulseAt,setPulseAt]=useState<number|null>(null);
  useEffect(()=>{let active=true;let request:AbortController|null=null;
@@ -87,7 +90,7 @@ export function QuotaBoard(){
     <div className="provider-reading"><div className={`pressure-track segmented-track ${ready?'':'no-readings'} ${showingLastKnown?'last-known':''}`} role="img" title={showingLastKnown?'Last reported usage, not a live session':showingLive?`Live rounded five-hour usage from ${live!.now!.installs} recently reporting ${live!.now!.installs===1?'Mac':'Macs'}`:allowanceReady&&cohort!.interval?`Likely ${range(cohort!)} · ${cohort!.contributors} ${plan(cohort!.plan)} users on ${model(cohort!.model)} · updated ${ago(cohort!.latestAt!)}`:undefined} aria-label={index===null?'No data yet':showingLastKnown?`${index}% last reported usage, not live.`:showingLive?`${index}% used in the current five-hour window.`:`${index}% of last week's 5-hour allowance. A full bar means no change.`}>
      {Array.from({length:40},(_,i)=><i key={i} aria-hidden="true" className={`quota-segment ${i<filled?'is-filled':ready&&tone==='decreased'?'is-lost':''}`}/>)}
     </div></div>
-    <p className={`one-line tone-${tone}`}>{loading&&!data&&!showingLive?'Checking…':showingLive?<span>Live 5-hour usage: <b>{index}% used</b> · {live!.now!.installs} {live!.now!.installs===1?'Mac reported':'Macs reported'} in the last {freshMinutes}m{live!.now!.latestAt?` · ${ago(live!.now!.latestAt)}`:''}</span>:allowanceReady?<span>Your 5-hour window now lasts <b>~{runway(index!)}</b></span>:showingLastKnown?<span>Last reported: <b>{index}% used</b> · {live!.lastKnown!.latestAt?ago(live!.lastKnown!.latestAt):'earlier'} · not live</span>:'Waiting for a fresh opted-in Miso report.'}{live?.now&&<span className="live-bit"><i className="live-dot" aria-hidden="true"/><span>{live.now.atLimit}% hitting the limit now{d!==null&&d!==0&&<em className={d>0?'worse':'better'}>{d>0?' ↑':' ↓'}</em>}</span></span>}</p>
+    <p className={`one-line tone-${tone}`}>{loading&&!data&&!showingLive?'Checking…':showingLive?<span>Live 5-hour usage: <b>{index}% used</b> · {live!.now!.installs} {live!.now!.installs===1?'Mac reported':'Macs reported'} in the last {freshMinutes}m{live!.now!.latestAt?` · ${ago(live!.now!.latestAt)}`:''}</span>:allowanceReady?<span>Your 5-hour window now lasts <b>~{runway(index!)}</b></span>:showingLastKnown?<span>Last reported: <b>{index}% used</b> · {live!.lastKnown!.latestAt?ago(live!.lastKnown!.latestAt):'earlier'} · not live</span>:'Waiting for a fresh Miso report.'}{live?.now&&<span className="live-bit"><i className="live-dot" aria-hidden="true"/><span>{live.now.atLimit}% hitting the limit now{d!==null&&d!==0&&<em className={d>0?'worse':'better'}>{d>0?' ↑':' ↓'}</em>}</span></span>}</p>
     {groups.length>1&&<label className="evidence-group"><span className="sr-only">{provider==='claude'?'Claude':'OpenAI'} group</span><select aria-label={`${provider==='claude'?'Claude':'OpenAI'} evidence group`} value={cohort?key(cohort):''} onChange={event=>setSelection(previous=>({...previous,[provider]:event.target.value}))}>{!cohort&&<option value="" disabled>Select a group</option>}{groups.map(c=><option key={key(c)} value={key(c)}>{groupLabel(c)}</option>)}</select></label>}
    </article>;
   })}</div>
@@ -96,7 +99,8 @@ export function QuotaBoard(){
    <h2 id="miso-title">Help make this dashboard more accurate.</h2>
    <p className="miso-copy">Download Miso. It shows your live session usage on your Mac and warns you before a limit runs out. It also powers this index, with zero prompt tracking.</p>
    <div className="miso-terminal"><span className="sleeping-miso" role="img" aria-label="Miso the cat, asleep on your terminal"/><InstallCommand/></div>
-   <div className="miso-foot">{sources>0?<p className="join-count"><strong>{sources.toLocaleString()}</strong> {sources===1?'reporting installation':'reporting installations'} in the latest sample. Add yours and make it {(sources+1).toLocaleString()}.</p>:<p className="join-count join-empty">{downloads?<><strong>{downloads.toLocaleString()}</strong> downloads so far. Live numbers appear once 1 Mac shares.</>:'One opted-in Mac is enough to start the live bars.'}</p>}</div>
+   <p className="miso-note">Apple Silicon, macOS 14+. Miso isn’t Apple-notarized yet: if macOS blocks the first launch, open System Settings → Privacy &amp; Security and click Open Anyway.</p>
+   <div className="miso-foot">{sources>0?<p className="join-count"><strong>{sources.toLocaleString()}</strong> {sources===1?'reporting installation':'reporting installations'} in the latest sample. Add yours and make it {(sources+1).toLocaleString()}.</p>:<p className="join-count join-empty">{downloads?<><strong>{downloads.toLocaleString()}</strong> downloads so far. Live numbers appear once 1 Mac shares.</>:'One sharing Mac is enough to start the live bars.'}</p>}</div>
   </section>
  </section>;
 }
