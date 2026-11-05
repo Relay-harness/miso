@@ -102,7 +102,9 @@ final class CommunitySharing {
     private let defaults: UserDefaults
     private var generation = 0
     private var deleting = false
-    private var lastBucket: [QuotaProvider: Int64] = [:]
+    /// Bucket plus rounded windows of the last accepted report. Re-sending inside a bucket is allowed only when the
+    /// coarse 5% usage actually moved; the collector replaces that bucket's reading, so this never adds a vote.
+    private var lastSent: [QuotaProvider: String] = [:]
     private var scopes: [QuotaProvider: String] = [:]
     private var series: [QuotaProvider: String] = [:]
     private var taskIDs: [QuotaProvider: UUID] = [:]
@@ -151,11 +153,11 @@ final class CommunitySharing {
         defaults.set(server.absoluteString, forKey: "communityServer")
         defaults.set(claudePlan, forKey: "communityClaudePlan"); defaults.set(codexPlan, forKey: "communityCodexPlan")
         defaults.set(1, forKey: "communityConsentVersion"); defaults.set(true, forKey: "communitySharingEnabled")
-        pauseUploads(); lastBucket.removeAll(); status = "Waiting for a fresh five-hour or weekly reading."
+        pauseUploads(); lastSent.removeAll(); status = "Waiting for a fresh five-hour or weekly reading."
     }
     func stop() {
         defaults.set(false, forKey: "communitySharingEnabled"); generation += 1
-        tasks.values.forEach { $0.cancel() }; tasks.removeAll(); taskIDs.removeAll(); lastBucket.removeAll()
+        tasks.values.forEach { $0.cancel() }; tasks.removeAll(); taskIDs.removeAll(); lastSent.removeAll()
         status = "Sharing stopped. Previously sent readings remain until deleted or expired."; onChange?()
     }
     private func key(create: Bool) throws -> Curve25519.Signing.PrivateKey {
@@ -169,7 +171,8 @@ final class CommunitySharing {
         let windows = CommunityPayload.windows(reading, now: now)
         guard !windows.isEmpty else { status = "No fresh supported standard windows to share."; return }
         let bucket = CommunityPayload.bucket(reading.capturedAt)
-        guard lastBucket[reading.provider] != bucket else { return }
+        let sentKey = "\(bucket)|" + windows.map { "\($0.kind):\($0.usedPercent):\($0.resetsAt)" }.joined(separator: ",")
+        guard lastSent[reading.provider] != sentKey else { return }
         if let scope = reading.scopeKey, scopes[reading.provider] != scope {
             scopes[reading.provider] = scope; series[reading.provider] = UUID().uuidString
         }
@@ -209,7 +212,7 @@ final class CommunitySharing {
                         guard !Task.isCancelled, token == generation, enabled else { return }
                         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
                         if code == 202 {
-                            lastBucket[reading.provider] = bucket
+                            lastSent[reading.provider] = sentKey
                             defaults.set(Date(), forKey: "communityAccepted-" + reading.provider.rawValue)
                             setStatus("Accepted by throttleindex collector.", provider: reading.provider); return
                         }
