@@ -116,6 +116,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         quotas.refreshIfDue()
         // An open popover is someone looking at the numbers: keep them fresh even between coding sessions.
         if popover.isShown { quotas.refreshVisibleIfDue() }
+        // Daily website check-in: right after install, then once every 24 hours, even when no provider app is open.
+        // A failed reading retries at most hourly until one is accepted.
+        if sharing.dailyReportDue() { quotas.refreshVisibleIfDue(interval: 3600) }
         update()
     }
 
@@ -569,7 +572,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Connect real subscription quotas?"
-        alert.informativeText = "The bundled open-source CodexBar CLI will contact providers using your existing Claude Code, Codex and Grok sign-ins. It may use their local login files, credential caches or owner CLIs. Provider helpers may read local usage metadata. Miso does not save raw responses or account emails.\n\nThis does not buy credits or run AI prompts. Gemini app browser access stays OFF until you separately approve it. No API-spend estimates are substituted for unavailable quotas.\n\nOn first connection, Miso enables sharing of rounded 5-hour and weekly usage percentages with throttleindex.com. If you previously stopped sharing, that choice is kept. Live usage may be published from a single reporting installation. No prompts, files, emails or credentials leave your Mac. Turn this off anytime: uncheck Share usage with throttleindex.\n\nYou can disconnect any time. Existing in-flight requests may finish after disconnect, but their results will be discarded."
+        alert.informativeText = "The bundled open-source CodexBar CLI will contact providers using your existing Claude Code, Codex and Grok sign-ins. It may use their local login files, credential caches or owner CLIs. Provider helpers may read local usage metadata. Miso does not save raw responses or account emails.\n\nThis does not buy credits or run AI prompts. Gemini app browser access stays OFF until you separately approve it. No API-spend estimates are substituted for unavailable quotas.\n\nOn first connection, Miso enables sharing of rounded 5-hour and weekly usage percentages with throttleindex.com. If you previously stopped sharing, that choice is kept. It reports once a day, and every Miso install is counted on the website. No prompts, files, emails or credentials leave your Mac. Turn this off anytime: uncheck Share usage with throttleindex.\n\nYou can disconnect any time. Existing in-flight requests may finish after disconnect, but their results will be discarded."
         alert.addButton(withTitle: "Enable live quotas")
         alert.addButton(withTitle: "Cancel")
         if alert.runModal() == .alertFirstButtonReturn {
@@ -641,7 +644,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Miso shares your usage with throttleindex.com"
-        alert.informativeText = "Your Claude and Codex 5-hour and weekly usage, rounded down to 5%, powers the live bars on throttleindex.com. No prompts, files, emails, account IDs or credentials leave your Mac.\n\nTurn it off anytime: click the cat in the menu bar, then the gear icon, and uncheck Share usage with throttleindex."
+        alert.informativeText = "Once a day, Miso sends your Claude and Codex 5-hour and weekly usage, rounded down to 5%, to throttleindex.com, where every Miso member is counted. No prompts, files, emails, account IDs or credentials leave your Mac.\n\nTurn it off anytime: click the cat in the menu bar, then the gear icon, and uncheck Share usage with throttleindex."
         alert.addButton(withTitle: "OK")
         alert.addButton(withTitle: "Turn off sharing")
         if alert.runModal() == .alertSecondButtonReturn { sharing.stop() }
@@ -685,7 +688,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         lines.append("Token-log statistics: " + (quotas.tokensEnabled ? "on" : "off"))
         lines.append("Collector: " + (sharing.endpoint?.absoluteString ?? "not configured"))
         lines.append("\n" + providerLines)
-        lines.append("\nSharing off prevents new uploads; old readings expire separately. Counts mean recent reporting installations, not online Macs or verified people.")
+        lines.append("\nSharing off prevents new uploads; old readings expire separately. Counts mean Miso members (installs that have checked in), not online Macs or verified people.")
         communityAlert("Miso connection details", lines.joined(separator: "\n"))
     }
     @objc private func deleteCommunityReadings() {

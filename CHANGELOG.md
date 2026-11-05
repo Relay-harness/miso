@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased - Daily check-ins and member counts
+
+- Report once right after install, then at most once every 24 hours, even when Claude Code or Codex isn't open. No more live reporting.
+- The collector counts every Mac that has ever checked in (members) until a signed deletion, and `/api/pulse` returns member counts plus the median of each member's latest reading.
+- The website drops all live wording: it shows the member count, new members today, typical 5-hour usage across members and the share at the limit, refreshing every 10 minutes.
+
 ## 1.9.6 - Share by default, live updates within a window
 
 - Read live quotas and share rounded usage with throttleindex.com from the first launch, with a one-time notice that can turn sharing off. Installs that never chose are enrolled on update; an explicit earlier "off" is kept.

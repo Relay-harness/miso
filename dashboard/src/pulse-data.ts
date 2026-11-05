@@ -1,21 +1,18 @@
-export type PulseSummary={installs:number;atLimit:number;medianUsed:number;latestAt?:number};
-export type PulseBucket={start:number;installs:number|null;atLimit:number|null;medianUsed:number|null};
-export type PulseProvider={lastKnown?:PulseSummary|null;now:PulseSummary|null;previous:PulseSummary|null;buckets:PulseBucket[];quietest:{startHourUtc:number;hours:number;atLimit:number}|null};
-export type Pulse={schema:number;method:string;generatedAt:number;bucketMinutes:number;minInstalls:number;freshnessMinutes?:number;reportingInstallations?:number|null;providers:{claude:PulseProvider;codex:PulseProvider}};
+// Daily member summary from /api/pulse. Every Mac that has ever checked in is counted; each contributes its
+// most recent daily reading. There is no live view.
+export type MemberSummary={members:number;medianUsed:number;atLimit:number;updatedAt:number};
+export type Pulse={schema:2;method:'daily-members-v1';generatedAt:number;cadenceHours:number;members:number;joinedToday:number;checkedInToday:number;providers:{claude:MemberSummary|null;codex:MemberSummary|null}};
 const pct=(n:unknown)=>typeof n==='number'&&Number.isFinite(n)&&n>=0&&n<=100;
-const summary=(s:unknown)=>s===null||(!!s&&typeof s==='object'&&Number.isInteger((s as PulseSummary).installs)&&(s as PulseSummary).installs>=1&&pct((s as PulseSummary).atLimit)&&pct((s as PulseSummary).medianUsed)&&((s as PulseSummary).latestAt===undefined||Number.isFinite((s as PulseSummary).latestAt)));
+const count=(n:unknown)=>Number.isInteger(n)&&(n as number)>=0;
+const summary=(s:unknown)=>s===null||(!!s&&typeof s==='object'&&Number.isInteger((s as MemberSummary).members)&&(s as MemberSummary).members>=1&&pct((s as MemberSummary).medianUsed)&&pct((s as MemberSummary).atLimit)&&Number.isFinite((s as MemberSummary).updatedAt));
 export function isPulse(v:unknown):v is Pulse{
  if(!v||typeof v!=='object')return false;const p=v as Pulse;
- if(p.reportingInstallations!==undefined&&p.reportingInstallations!==null&&(!Number.isInteger(p.reportingInstallations)||p.reportingInstallations<1))return false;
- if(p.schema!==1||p.method!=='opt-in-quota-pressure-v1'||!Number.isFinite(p.generatedAt)||p.bucketMinutes!==30||!Number.isInteger(p.minInstalls)||p.minInstalls<1||!p.providers)return false;
- return (['claude','codex'] as const).every(k=>{const x=p.providers[k];return !!x&&(x.lastKnown===undefined||summary(x.lastKnown))&&summary(x.now)&&summary(x.previous)&&Array.isArray(x.buckets)&&x.buckets.length===48&&x.buckets.every(b=>Number.isFinite(b.start)&&(b.atLimit===null?b.installs===null:pct(b.atLimit)&&Number.isInteger(b.installs)&&b.installs!>=p.minInstalls))&&(x.quietest===null||(Number.isInteger(x.quietest.startHourUtc)&&x.quietest.startHourUtc>=0&&x.quietest.startHourUtc<24&&pct(x.quietest.atLimit)));});
+ if(p.schema!==2||p.method!=='daily-members-v1'||!Number.isFinite(p.generatedAt)||p.cadenceHours!==24||!count(p.members)||!count(p.joinedToday)||!count(p.checkedInToday)||!p.providers)return false;
+ if(p.joinedToday>p.members||p.checkedInToday>p.members)return false;
+ return (['claude','codex'] as const).every(k=>summary(p.providers[k])&&(p.providers[k]===null||p.providers[k]!.members<=p.members));
 }
-// Display-only hypothetical pulse. Never seeded into the collector.
+// Display-only hypothetical members. Never seeded into the collector.
 export function createDemoPulse(now=Date.now()):Pulse{
- const end=Math.floor(now/1800000)*1800000+1800000;
- const make=(base:number,peak:number,nowV:number,prevV:number,installs:number):PulseProvider=>{
-  const buckets=Array.from({length:48},(_,i)=>{const start=end-(48-i)*1800000;const h=new Date(start).getUTCHours()+new Date(start).getUTCMinutes()/60;const wave=Math.max(0,Math.sin((h-9)/24*2*Math.PI));const v=Math.round(base+(peak-base)*wave+((i*37)%7)-3);return {start,installs:installs-((i*13)%17),atLimit:Math.max(0,Math.min(100,i>=46?(i===47?nowV:prevV):v)),medianUsed:Math.min(99,40+v)};});
-  return {now:{installs,atLimit:nowV,medianUsed:62},previous:{installs:installs-4,atLimit:prevV,medianUsed:70},buckets,quietest:{startHourUtc:3,hours:3,atLimit:base}};
- };
- return {schema:1,method:'opt-in-quota-pressure-v1',generatedAt:now,bucketMinutes:30,minInstalls:1,providers:{claude:make(6,48,23,41,142),codex:make(3,18,9,8,96)}};
+ return {schema:2,method:'daily-members-v1',generatedAt:now,cadenceHours:24,members:142,joinedToday:9,checkedInToday:61,
+  providers:{claude:{members:131,medianUsed:60,atLimit:23,updatedAt:now-40*60000},codex:{members:88,medianUsed:35,atLimit:9,updatedAt:now-2*3600000}}};
 }

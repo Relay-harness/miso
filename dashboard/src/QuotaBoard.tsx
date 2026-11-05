@@ -33,23 +33,20 @@ export function QuotaBoard(){
   void load();const t=window.setInterval(()=>void load(),600000);document.addEventListener('visibilitychange',onVisible);
   return()=>{active=false;request?.abort();window.clearInterval(t);document.removeEventListener('visibilitychange',onVisible);};
  },[demo]);
- const [pulseError,setPulseError]=useState(false),[pulseAt,setPulseAt]=useState<number|null>(null);
+ const [pulseError,setPulseError]=useState(false);
+ // Members check in once a day, so the page only needs an occasional refresh: on load, on tab focus and every 10 minutes.
  useEffect(()=>{let active=true;let request:AbortController|null=null;
   async function load(){if(demo){setPulse(createDemoPulse());return;}request?.abort();const c=new AbortController();request=c;
    const timeout=window.setTimeout(()=>c.abort(),10000);
-   try{const r=await fetch(API+'/api/pulse',{credentials:'omit',cache:'no-store',signal:c.signal});if(!r.ok)throw new Error();const v:unknown=await r.json();if(!isPulse(v))throw new Error();if(active&&request===c){setNow(Date.now());setPulse(v);setPulseError(false);setPulseAt(Date.now());}}
-   catch{if(active&&!c.signal.aborted)setPulseError(true);else if(active&&request===c)setPulseError(true);}
+   try{const r=await fetch(API+'/api/pulse',{credentials:'omit',cache:'no-store',signal:c.signal});if(!r.ok)throw new Error();const v:unknown=await r.json();if(!isPulse(v))throw new Error();if(active&&request===c){setNow(Date.now());setPulse(v);setPulseError(false);}}
+   catch{if(active&&(!c.signal.aborted||request===c))setPulseError(true);}
    finally{window.clearTimeout(timeout);}}
-  // Refresh the clock first: a tab waking from sleep must not judge a fresh pulse against a pre-sleep time.
   const resume=()=>{setNow(Date.now());if(document.visibilityState==='visible')void load();};void load();
-  const t=window.setInterval(resume,30000);window.addEventListener('online',resume);document.addEventListener('visibilitychange',resume);
+  const t=window.setInterval(resume,600000);window.addEventListener('online',resume);document.addEventListener('visibilitychange',resume);
   return()=>{active=false;request?.abort();window.clearInterval(t);window.removeEventListener('online',resume);document.removeEventListener('visibilitychange',resume);};
  },[demo,attempt]);
- const freshMinutes=pulse&&Number.isFinite(pulse.freshnessMinutes)&&pulse.freshnessMinutes!>0?pulse.freshnessMinutes!:10,freshMs=freshMinutes*60000;
- const recentPulse=pulse&&now-pulse.generatedAt<freshMs&&pulse.generatedAt<=now+120000?pulse:null;
- const freshSummary=(v:Pulse['providers']['claude']['now'])=>v&&(!v.latestAt||now-v.latestAt<=freshMs)?v:null;
- const livePulse=recentPulse?{...recentPulse,providers:{claude:{...recentPulse.providers.claude,now:freshSummary(recentPulse.providers.claude.now)},codex:{...recentPulse.providers.codex,now:freshSummary(recentPulse.providers.codex.now)}}}:null;
- useEffect(()=>{const c=livePulse?.providers.claude.now,pr=livePulse?.providers.claude.previous;document.title=c?`${pr?(c.atLimit>pr.atLimit?'↑':c.atLimit<pr.atLimit?'↓':'='):''} Claude ${c.atLimit}% at limit · throttleindex`:'throttleindex · are the limits shrinking?';},[livePulse]);
+ const members=pulse&&pulse.generatedAt<=now+120000?pulse:null;
+ useEffect(()=>{const c=members?.providers.claude;document.title=c?`Claude ${c.atLimit}% at limit · throttleindex`:'throttleindex · are the limits shrinking?';},[members]);
  useEffect(()=>{
   let active=true;
   async function load(){
@@ -63,44 +60,43 @@ export function QuotaBoard(){
  },[attempt,demo]);
  const stale=!!data&&(now-data.generatedAt>data.freshnessMinutes*60000||data.generatedAt>now+60000);
  const available=!!data&&!error&&!stale;
- const sources=demo?(available?data.reportingInstallations??0:0):(livePulse?.reportingInstallations??0);
+ const sources=demo?(available?data.reportingInstallations??0:0):(members?.members??0);
  return <section className="quota-board minimal-quota allowance-board clean" aria-label="Claude and Codex limits">
   {demo&&<aside className="demo-notice" aria-label="Demo data notice"><span>Demo · made-up numbers</span><a href={window.location.pathname}>Exit demo</a></aside>}
   <h1 className="headline">did they just nerf the limits? again!?</h1>
-  {!demo&&<div className="live-status" role="status"><span>{pulseAt?`Live data checked ${ago(pulseAt)} · updates every 30s`:'Connecting to live data…'}</span><button type="button" onClick={()=>{setNow(Date.now());setAttempt(v=>v+1);}}>Refresh now</button></div>}
-  {(pulseError||((error||stale)&&!livePulse?.providers.claude.now&&!livePulse?.providers.codex.now))&&<div className="collector-notice" role="status"><Info size={13}/><span>{pulseError?'Live connection interrupted. Last received readings are kept briefly.':stale?'Allowance evidence is stale. Live usage is separate.':'Can’t reach the data right now.'} <button onClick={()=>setAttempt(v=>v+1)}>Retry</button></span></div>}
+  {!demo&&<div className="live-status" role="status"><span>{members?`${members.members.toLocaleString()} Miso ${members.members===1?'member':'members'} · each Mac checks in once a day${members.joinedToday?` · ${members.joinedToday} new today`:''}`:'Loading members…'}</span></div>}
+  {(pulseError||((error||stale)&&!members?.providers.claude&&!members?.providers.codex))&&<div className="collector-notice" role="status"><Info size={13}/><span>{stale?'Allowance evidence is stale.':'Can’t reach the data right now.'} <button onClick={()=>setAttempt(v=>v+1)}>Retry</button></span></div>}
   <div className="provider-stack">{(['claude','codex'] as const).map(provider=>{
    const kind='five_hour';
    const groups=available?data.cohorts.filter(c=>c.provider===provider&&c.kind===kind):[];
    const selected=selection[provider]||(groups[0]?key(groups[0]):'');
    const cohort=groups.find(c=>key(c)===selected);
    const allowanceReady=!!cohort&&cohort.status!=='insufficient'&&cohort.index!==null;
-   const live=livePulse?.providers[provider]??null;
-   // A live reading is the useful first signal: with one Mac, this is that Mac's rounded usage.
-   // The slower allowance comparison stays labelled and only replaces it once its cohort is ready.
-   const showingLive=!demo&&!!live?.now;
-   const showingLastKnown=!demo&&!showingLive&&!allowanceReady&&!!live?.lastKnown;
-   const ready=showingLive||allowanceReady||showingLastKnown;
-   const index=showingLive?live!.now!.medianUsed:(allowanceReady?cohort!.index:showingLastKnown?live!.lastKnown!.medianUsed:null);
+   const usage=members?.providers[provider]??null;
+   // Every member's latest daily check-in is the first signal. The slower allowance comparison only replaces it
+   // once its matched cohort is ready.
+   const showingMembers=!demo&&!!usage;
+   const ready=showingMembers||allowanceReady;
+   const index=showingMembers?usage!.medianUsed:(allowanceReady?cohort!.index:null);
    const filled=index===null?0:Math.min(40,Math.round(index/2.5));
-   const tone=!showingLive&&allowanceReady?cohort!.status:'insufficient';
-   const d=live?.now&&live.previous?live.now.atLimit-live.previous.atLimit:null;
-   return <article key={provider} className={`quota-gauge provider-row ${provider} ${kind} ${tone==='decreased'?'allowance-decreased':''}`} aria-label={`${provider==='claude'?'Claude':'OpenAI'} five-hour ${showingLive||showingLastKnown?'usage':'allowance'}`}>
-    <div className="provider-line"><h2>{provider==='claude'?<img className="provider-mark" src="/claude-ai-logo.png" width={22} height={22} alt="" aria-hidden="true"/>:<OpenAiLogo className="provider-mark" size={22} aria-hidden="true"/>}{provider==='claude'?'Claude':'OpenAI'}{!showingLive&&allowanceReady&&delta(cohort!)!==0&&<span className={`provider-sub tone-${tone}`}>{`${delta(cohort!)>0?'+':'−'}${Math.abs(delta(cohort!))}% this week`}</span>}</h2><div className="gauge-number"><strong>{index===null?'-':index}</strong>{index!==null&&<span>%</span>}</div></div>
-    <div className="provider-reading"><div className={`pressure-track segmented-track ${ready?'':'no-readings'} ${showingLastKnown?'last-known':''}`} role="img" title={showingLastKnown?'Last reported usage, not a live session':showingLive?`Live rounded five-hour usage from ${live!.now!.installs} recently reporting ${live!.now!.installs===1?'Mac':'Macs'}`:allowanceReady&&cohort!.interval?`Likely ${range(cohort!)} · ${cohort!.contributors} ${plan(cohort!.plan)} users on ${model(cohort!.model)} · updated ${ago(cohort!.latestAt!)}`:undefined} aria-label={index===null?'No data yet':showingLastKnown?`${index}% last reported usage, not live.`:showingLive?`${index}% used in the current five-hour window.`:`${index}% of last week's 5-hour allowance. A full bar means no change.`}>
+   const tone=!showingMembers&&allowanceReady?cohort!.status:'insufficient';
+   const who=(n:number)=>`${n.toLocaleString()} ${n===1?'member':'members'}`;
+   return <article key={provider} className={`quota-gauge provider-row ${provider} ${kind} ${tone==='decreased'?'allowance-decreased':''}`} aria-label={`${provider==='claude'?'Claude':'OpenAI'} five-hour ${showingMembers?'usage':'allowance'}`}>
+    <div className="provider-line"><h2>{provider==='claude'?<img className="provider-mark" src="/claude-ai-logo.png" width={22} height={22} alt="" aria-hidden="true"/>:<OpenAiLogo className="provider-mark" size={22} aria-hidden="true"/>}{provider==='claude'?'Claude':'OpenAI'}{!showingMembers&&allowanceReady&&delta(cohort!)!==0&&<span className={`provider-sub tone-${tone}`}>{`${delta(cohort!)>0?'+':'−'}${Math.abs(delta(cohort!))}% this week`}</span>}</h2><div className="gauge-number"><strong>{index===null?'-':index}</strong>{index!==null&&<span>%</span>}</div></div>
+    <div className="provider-reading"><div className={`pressure-track segmented-track ${ready?'':'no-readings'}`} role="img" title={showingMembers?`Typical five-hour usage across ${who(usage!.members)}, from each Mac's latest daily check-in`:allowanceReady&&cohort!.interval?`Likely ${range(cohort!)} · ${cohort!.contributors} ${plan(cohort!.plan)} users on ${model(cohort!.model)} · updated ${ago(cohort!.latestAt!)}`:undefined} aria-label={index===null?'No data yet':showingMembers?`${index}% typical five-hour usage across ${who(usage!.members)}.`:`${index}% of last week's 5-hour allowance. A full bar means no change.`}>
      {Array.from({length:40},(_,i)=><i key={i} aria-hidden="true" className={`quota-segment ${i<filled?'is-filled':ready&&tone==='decreased'?'is-lost':''}`}/>)}
     </div></div>
-    <p className={`one-line tone-${tone}`}>{loading&&!data&&!showingLive?'Checking…':showingLive?<span>Live 5-hour usage: <b>{index}% used</b> · {live!.now!.installs} {live!.now!.installs===1?'Mac reported':'Macs reported'} in the last {freshMinutes}m{live!.now!.latestAt?` · ${ago(live!.now!.latestAt)}`:''}</span>:allowanceReady?<span>Your 5-hour window now lasts <b>~{runway(index!)}</b></span>:showingLastKnown?<span>Last reported: <b>{index}% used</b> · {live!.lastKnown!.latestAt?ago(live!.lastKnown!.latestAt):'earlier'} · not live</span>:'Waiting for a fresh Miso report.'}{live?.now&&<span className="live-bit"><i className="live-dot" aria-hidden="true"/><span>{live.now.atLimit}% hitting the limit now{d!==null&&d!==0&&<em className={d>0?'worse':'better'}>{d>0?' ↑':' ↓'}</em>}</span></span>}</p>
+    <p className={`one-line tone-${tone}`}>{loading&&!data&&!showingMembers?'Checking…':showingMembers?<span>Typical 5-hour usage: <b>{index}% used</b> · {who(usage!.members)} · latest check-in {ago(usage!.updatedAt)}</span>:allowanceReady?<span>Your 5-hour window now lasts <b>~{runway(index!)}</b></span>:'Waiting for the first Miso check-in.'}{usage&&<span className="live-bit"><span>{usage.atLimit}% of members at the limit</span></span>}</p>
     {groups.length>1&&<label className="evidence-group"><span className="sr-only">{provider==='claude'?'Claude':'OpenAI'} group</span><select aria-label={`${provider==='claude'?'Claude':'OpenAI'} evidence group`} value={cohort?key(cohort):''} onChange={event=>setSelection(previous=>({...previous,[provider]:event.target.value}))}>{!cohort&&<option value="" disabled>Select a group</option>}{groups.map(c=><option key={key(c)} value={key(c)}>{groupLabel(c)}</option>)}</select></label>}
    </article>;
   })}</div>
   <section className="miso" aria-labelledby="miso-title">
    <p className="kicker">For folks on macOS</p>
    <h2 id="miso-title">Help make this dashboard more accurate.</h2>
-   <p className="miso-copy">Download Miso. It shows your live session usage on your Mac and warns you before a limit runs out. It also powers this index, with zero prompt tracking.</p>
+   <p className="miso-copy">Download Miso. It shows your session usage on your Mac and warns you before a limit runs out. It also powers this index, with zero prompt tracking.</p>
    <div className="miso-terminal"><span className="sleeping-miso" role="img" aria-label="Miso the cat, asleep on your terminal"/><InstallCommand/></div>
    <p className="miso-note">Apple Silicon, macOS 14+. Miso isn’t Apple-notarized yet: if macOS blocks the first launch, open System Settings → Privacy &amp; Security and click Open Anyway.</p>
-   <div className="miso-foot">{sources>0?<p className="join-count"><strong>{sources.toLocaleString()}</strong> {sources===1?'reporting installation':'reporting installations'} in the latest sample. Add yours and make it {(sources+1).toLocaleString()}.</p>:<p className="join-count join-empty">{downloads?<><strong>{downloads.toLocaleString()}</strong> downloads so far. Live numbers appear once 1 Mac shares.</>:'One sharing Mac is enough to start the live bars.'}</p>}</div>
+   <div className="miso-foot">{sources>0?<p className="join-count"><strong>{sources.toLocaleString()}</strong> {demo?(sources===1?'reporting installation':'reporting installations'):(sources===1?'Miso member':'Miso members')} counted. Add yours and make it {(sources+1).toLocaleString()}.</p>:<p className="join-count join-empty">{downloads?<><strong>{downloads.toLocaleString()}</strong> downloads so far. The bars fill as soon as the first Mac checks in.</>:'One Mac checking in is enough to start the bars.'}</p>}</div>
   </section>
  </section>;
 }

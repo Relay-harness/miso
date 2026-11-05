@@ -58,10 +58,13 @@ final class MockCollector: URLProtocol {
         // Continuation can resume before the task's defer; yield once, without polling.
         await Task.yield()
         share.submit(reading); check(MockCollector.count() == 2, "accepted bucket is not resent")
-        // Usage rising inside the same five-minute bucket is sent again, under the same series, so the collector
-        // replaces that bucket's reading (one vote) instead of rejecting it as a different series.
+        // Daily cadence: a second, different reading within 24 hours is not sent.
         let rising = QuotaReading(provider: .claude, capturedAt: now, source: "fixture",
             windows: [QuotaWindow(title: "5-hour", used: 45, resetsAt: now.addingTimeInterval(7200), key: "primary", durationMinutes: 300)], lastKnown: false)
+        share.submit(rising); check(MockCollector.count() == 2, "a different reading within 24 hours is not sent")
+        check(!share.dailyReportDue() && share.dailyReportDue(now: Date().addingTimeInterval(CommunitySharing.reportInterval + 1)), "the next report is due 24 hours after acceptance")
+        // A day later the next reading goes out.
+        preferences.set(now.addingTimeInterval(-CommunitySharing.reportInterval - 60), forKey: "communityAccepted-claude")
         await withCheckedContinuation { continuation in
             var finished = false
             share.onChange = {
@@ -69,17 +72,14 @@ final class MockCollector: URLProtocol {
             }
             share.submit(rising)
         }
-        let sent = MockCollector.sentSeries()
-        check(MockCollector.count() == 3, "changed usage in the same bucket is sent again")
-        check(sent.count == 3 && Set(sent).count == 1, "same-bucket update keeps the series so the collector can replace it")
-        await Task.yield()
-        share.submit(rising); check(MockCollector.count() == 3, "an identical rising reading is not resent")
+        check(MockCollector.count() == 3, "after 24 hours the next daily reading is sent")
         share.onChange = nil
         share.stop(); check(!share.enabled && !preferences.bool(forKey: "communitySharingEnabled"), "stop preserves explicit revoked consent")
         let reloaded = CommunitySharing(defaults: preferences,
             identityStore: CommunityIdentityStore(file: directory.appendingPathComponent("key"), legacy: { nil }), session: session)
         check(!reloaded.enabled && reloaded.lastAccepted(.claude) != nil, "restart preserves revocation and last acknowledgement")
         share.onChange = nil
+        preferences.removeObject(forKey: "communityAccepted-claude")
         MockCollector.setup([403])
         try share.enable(server: URL(string: "https://collector.invalid")!, claudePlan: "unknown", codexPlan: "unknown")
         await withCheckedContinuation { continuation in
