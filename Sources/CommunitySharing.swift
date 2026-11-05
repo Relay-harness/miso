@@ -107,6 +107,7 @@ final class CommunitySharing {
     private var lastSent: [QuotaProvider: String] = [:]
     private var scopes: [QuotaProvider: String] = [:]
     private var series: [QuotaProvider: String] = [:]
+    private var unscopedBucket: [QuotaProvider: Int64] = [:]
     private var taskIDs: [QuotaProvider: UUID] = [:]
     private var tasks: [QuotaProvider: Task<Void, Never>] = [:]
     private let session: URLSession
@@ -176,8 +177,12 @@ final class CommunitySharing {
         if let scope = reading.scopeKey, scopes[reading.provider] != scope {
             scopes[reading.provider] = scope; series[reading.provider] = UUID().uuidString
         }
-        // Missing scope cannot support a longitudinal forecast: start a new series each time.
-        if reading.scopeKey == nil || series[reading.provider] == nil { series[reading.provider] = UUID().uuidString }
+        // Missing scope cannot support a longitudinal forecast: start a new series for each five-minute bucket.
+        // Within one bucket it stays the same, so a rising reading can replace that bucket's row instead of a 409.
+        if series[reading.provider] == nil || (reading.scopeKey == nil && unscopedBucket[reading.provider] != bucket) {
+            series[reading.provider] = UUID().uuidString
+        }
+        unscopedBucket[reading.provider] = reading.scopeKey == nil ? bucket : nil
         do {
             let identity = try key(create: true)
             let provider = reading.provider.rawValue
