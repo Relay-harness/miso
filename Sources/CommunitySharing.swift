@@ -25,6 +25,8 @@ enum CommunityPayload {
     /// Public dashboard. Users can still enter their own collector; nothing is sent without consent.
     static let defaultServer = "https://api.throttleindex.com"
     static func bucket(_ date: Date) -> Int64 { Int64(floor(date.timeIntervalSince1970 / 300)) * 300_000 }
+    /// Reset times round UP so a window in its final five minutes is not dropped as already reset.
+    static func resetBucket(_ date: Date) -> Int64 { Int64(ceil(date.timeIntervalSince1970 / 300)) * 300_000 }
     static func windows(_ reading: QuotaReading, now: Date) -> [CommunityWindow] {
         guard !reading.stale(at: now), reading.provider == .claude || reading.provider == .codex else { return [] }
         var seen = Set<String>()
@@ -33,11 +35,13 @@ enum CommunityPayload {
             let kind: String
             switch window.durationMinutes { case 300: kind = "five_hour"; case 10080: kind = "weekly"; default: return nil }
             guard !seen.contains(kind), window.used.isFinite, window.used >= 0, window.used <= 100,
-                  let reset = window.resetsAt, bucket(reset) > Int64(now.timeIntervalSince1970 * 1000),
-                  reset.timeIntervalSince(reading.capturedAt) <= Double((window.durationMinutes ?? 0) * 60 + 600) else { return nil }
+                  let reset = window.resetsAt, resetBucket(reset) > Int64(now.timeIntervalSince1970 * 1000),
+                  reset.timeIntervalSince(reading.capturedAt) <= Double((window.durationMinutes ?? 0) * 60 + 600),
+                  // Mirror the collector's rule on the rounded values, so a report is never sent only to be rejected.
+                  resetBucket(reset) - bucket(reading.capturedAt) <= Int64((window.durationMinutes ?? 0) * 60_000 + 600_000) else { return nil }
             seen.insert(kind)
             // Floor, never round 99.9% up to an exhausted 100%.
-            return CommunityWindow(kind: kind, usedPercent: Int(floor(window.used / 5)) * 5, resetsAt: bucket(reset))
+            return CommunityWindow(kind: kind, usedPercent: Int(floor(window.used / 5)) * 5, resetsAt: resetBucket(reset))
         }
     }
     static func endpoint(_ text: String) -> URL? {
@@ -121,7 +125,9 @@ final class CommunitySharing {
     private(set) var providerStatus: [QuotaProvider: String] = [:]
     func lastAccepted(_ provider: QuotaProvider) -> Date? { defaults.object(forKey: "communityAccepted-" + provider.rawValue) as? Date }
     var endpoint: URL? {
-        guard let saved = defaults.string(forKey: "communityServer") else { return nil }
+        // Consent always writes a server; if that key is lost, fall back to the documented default instead of silently never sending.
+        guard let saved = defaults.string(forKey: "communityServer")?.trimmingCharacters(in: .whitespacesAndNewlines), !saved.isEmpty
+        else { return enabled ? CommunityPayload.endpoint(CommunityPayload.defaultServer) : nil }
         // Both public roots route to the same operator/identity. Custom collectors are untouched.
         return CommunityPayload.endpoint(saved == "https://www.throttleindex.com" || saved == "https://www.throttleindex.com/" ? CommunityPayload.defaultServer : saved)
     }

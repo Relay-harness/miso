@@ -12,6 +12,8 @@ final class DashboardState: ObservableObject {
     @Published var now = Date()
     @Published var panelSize = DashboardLayout.preferredSize
     @Published var showingStats = false { didSet { onLayoutChange?() } }
+    /// Set when GitHub has a newer release; shows an Update button in the popover footer.
+    @Published var updateVersion: String?
     var onLayoutChange: (() -> Void)?
     var hasQuota: Bool { isFresh && lanes().contains { $0.1.map { !$0.expired(at: now) } == true } }
     var expandedLayout: Bool { showingStats || connected }
@@ -102,6 +104,7 @@ final class DashboardState: ObservableObject {
 struct DashboardActions {
     var enable: () -> Void
     var refresh: () -> Void
+    var update: () -> Void = {}
     var gemini: () -> Void
     var tokens: () -> Void
     var settings: () -> Void
@@ -305,9 +308,25 @@ struct RelayCatDashboard: View {
                 Button("Stats") { model.showingStats = true }.buttonStyle(.plain).font(.system(size: 11)).foregroundStyle(muted)
                     .accessibilityLabel("Show input and output stats")
             }
-            Button(action: actions.refresh) { Image(systemName: "arrow.clockwise").font(.system(size: 12)).frame(width: 24, height: 24) }
-                .buttonStyle(.plain).foregroundStyle(muted).help("Refresh").accessibilityLabel("Refresh usage")
-                .disabled(!model.preview && (busy || !model.connected && !model.store.tokensEnabled))
+            if let version = model.updateVersion, !model.preview {
+                Button(action: actions.update) {
+                    Label("Update \(version)", systemImage: "arrow.down.circle.fill").font(.system(size: 11, weight: .semibold))
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Capsule().fill(accent.opacity(0.18)))
+                }
+                .buttonStyle(.plain).foregroundStyle(accent).help("Miso \(version) is available")
+                .accessibilityLabel("Update Miso to \(version)")
+            }
+            // Always visible and clickable: when quota access is off it opens Connect instead of doing nothing.
+            Button(action: actions.refresh) {
+                Group {
+                    if !model.preview && busy { ProgressView().controlSize(.small).scaleEffect(0.7) }
+                    else { Image(systemName: "arrow.clockwise").font(.system(size: 13, weight: .semibold)) }
+                }.frame(width: 24, height: 24).contentShape(Rectangle())
+            }
+                .buttonStyle(.plain).foregroundStyle(accent).help(model.connected ? "Refresh now (⌘R)" : "Connect quotas")
+                .accessibilityLabel("Refresh usage")
+                .disabled(!model.preview && busy)
                 .keyboardShortcut("r", modifiers: .command)
             Button(action: actions.settings) { Image(systemName: "gearshape").font(.system(size: 12)).frame(width: 24, height: 24) }
                 .buttonStyle(.plain).foregroundStyle(muted).help("Settings").accessibilityLabel("Settings")
@@ -324,7 +343,7 @@ struct RelayCatDashboard: View {
     }
     private var sourceDetail: String {
         switch model.selected {
-        case .claude: return "Claude subscription quota. Checks every five minutes. Forecasts are estimates at your recent quota pace."
+        case .claude: return "Claude subscription quota. Checks every five minutes while Claude runs, and every minute while this panel is open. Forecasts are estimates at your recent quota pace."
         case .codex: return "Codex subscription limits, not every ChatGPT model's message limit."
         case .gemini: return "Gemini app subscription quota, not Gemini CLI or API credits."
         case .grok: return "Grok subscription quota, not xAI API credits."

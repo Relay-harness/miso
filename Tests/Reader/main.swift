@@ -49,6 +49,7 @@ MainActor.assumeIsolated {
     store.setActiveProviders([.claude]); check(store.quotaProvidersForRefresh == [.claude], "Claude-only activity does not query Codex")
     store.setActiveProviders([.codex]); check(store.quotaProvidersForRefresh == [.codex], "Codex-only activity does not query Claude")
     store.pauseForSleep(); check(store.quotaProvidersForRefresh.isEmpty, "sleep pauses provider quota work")
+    check(store.userRequestedProviders.contains(.claude) && store.userRequestedProviders.contains(.codex), "Refresh button and open popover still read quotas when no provider app is running")
     check(!defaults.bool(forKey: "realQuotasEnabled") && !defaults.bool(forKey: "localTokenStatsEnabled"), "activity detection grants no permissions")
 }
 print("\(count) reader/lifecycle checks passed")

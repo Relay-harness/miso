@@ -49,7 +49,7 @@ Quit any older Relay Cat copy, then open **Miso** from Applications. The officia
 
 **Homebrew makes installation easier, not Apple-verified. This preview is ad-hoc signed and not notarized.** If macOS blocks the first launch with an unverified-developer warning, review the source/release first. Only if you trust it: try opening the app once, then choose **System Settings → Privacy & Security → Open Anyway**, authenticate if asked, and confirm **Open**. Control-click → Open alone may not work on current macOS. Do not override a malware/“will damage your computer” alert. Never disable Gatekeeper system-wide. The cask does not remove quarantine.
 
-See [Homebrew installation, updates and troubleshooting](docs/HOMEBREW.md), or [download the v1.9.4 ZIP and checksum](https://github.com/Relay-harness/miso/releases/tag/v1.9.4).
+See [Homebrew installation, updates and troubleshooting](docs/HOMEBREW.md), or [download the v1.9.5 ZIP and checksum](https://github.com/Relay-harness/miso/releases/tag/v1.9.5).
 
 ## Build from a clean checkout
 

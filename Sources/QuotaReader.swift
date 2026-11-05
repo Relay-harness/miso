@@ -134,6 +134,9 @@ final class QuotaStore {
     private var providerSelection: ProviderSelection { ProviderSelection(saved: defaults.stringArray(forKey: "optionalQuotaProviders")) }
     var visibleProviders: [QuotaProvider] { providerSelection.providers }
     var quotaProvidersForRefresh: [QuotaProvider] { providerSelection.quotaRequests(allowGemini: geminiBrowserAllowed).filter { activeProviders.contains($0) } }
+    /// Providers a person explicitly asked to see (Refresh button, Cmd-R, open popover). Not limited to running CLIs,
+    /// because a user action must never silently do nothing.
+    var userRequestedProviders: [QuotaProvider] { providerSelection.quotaRequests(allowGemini: geminiBrowserAllowed) }
     var displayedProvider: QuotaProvider {
         let stored = QuotaProvider(rawValue: defaults.string(forKey: "quotaInBar") ?? "claude") ?? .claude
         return visibleProviders.contains(stored) ? stored : .codex
@@ -194,6 +197,11 @@ final class QuotaStore {
         if enabled && providerActive && Date().timeIntervalSince(lastAttempt) >= 300 { refresh() }
         if tokensEnabled && providerActive && Date().timeIntervalSince(lastTokenAttempt) >= 300 { refreshTokens() }
     }
+    /// While the popover is open, keep visible numbers at most one minute old, even if no provider CLI is running.
+    func refreshVisibleIfDue(interval: TimeInterval = 60) {
+        guard enabled, Date().timeIntervalSince(lastAttempt) >= interval else { return }
+        refresh(requested: userRequestedProviders)
+    }
     func forecast(_ provider: QuotaProvider, window: QuotaWindow, now: Date) -> QuotaForecast? {
         guard problems[provider] == nil, let reading = readings[provider] else { return nil }
         return history.forecast(provider: provider, reading: reading, window: window, now: now)
@@ -238,10 +246,11 @@ final class QuotaStore {
     }
     func headline(_ provider: QuotaProvider, at now: Date = Date()) -> String {
         guard enabled else { return "Not connected" }
-        if !activeProviders.contains(provider) { return "Paused · provider not running" }
         if provider == .gemini && !geminiBrowserAllowed { return "Browser permission needed" }
         if problems[provider] != nil { return "Unavailable" }
+        // A measured reading stays visible when the provider app is closed; only automatic polling pauses.
         if let reading = readings[provider] { return reading.headline(at: now) }
+        if !activeProviders.contains(provider) { return refreshing ? "Checking…" : "Auto-refresh paused · press Refresh" }
         return refreshing ? "Checking…" : "Unavailable"
     }
     func barText(at now: Date = Date()) -> String {

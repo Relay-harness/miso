@@ -21,11 +21,13 @@ test('quietest three-hour stretch uses the lowest share at limit',()=>{
  assert.deepEqual(computePulse(rows,NOW,5).providers.claude.quietest,{startHourUtc:2,hours:3,atLimit:0});
 });
 
-test('expired quotas and reports older than ten minutes do not count as current; history remains',()=>{
- const rows=[{...row('reset',5,95),reset:NOW-60000},row('old',11,50),row('fresh',1,35)];
+test('expired quotas and reports older than fifteen minutes do not count as current; history remains',()=>{
+ const rows=[{...row('reset',5,95),reset:NOW-60000},row('old',16,50),row('fresh',1,35)];
  const p=computePulse(rows,NOW);assert.equal(p.reportingInstallations,1);assert.equal(p.providers.claude.now.medianUsed,35);assert.equal(p.providers.claude.now.installs,1);
  assert.ok(p.providers.claude.buckets.some(b=>b.installs>1));
- assert.equal(computePulse([row('gone',11,50)],NOW).providers.claude.now,null);
+ assert.equal(computePulse([row('gone',16,50)],NOW).providers.claude.now,null);
+ // A reading floored to its 5-minute bucket plus one polling interval must still be live.
+ assert.equal(computePulse([row('between-polls',11,50)],NOW).providers.claude.now.medianUsed,50);assert.equal(computePulse([],NOW).freshnessMinutes,15);
 });
 test('reporting count is distinct union across both providers, never max or sum',()=>{
  const rows=[row('same',1,20),row('same',1,30,'codex'),row('other',1,40,'codex')];
@@ -34,6 +36,6 @@ test('reporting count is distinct union across both providers, never max or sum'
 });
 
 test('after shutdown TTL, current sample disappears but last-known usage remains labelled historical',()=>{
- const p=computePulse([row('sleeping',11,35)],NOW);assert.equal(p.reportingInstallations,null);
- assert.equal(p.providers.claude.now,null);assert.equal(p.providers.claude.lastKnown.medianUsed,35);assert.equal(p.providers.claude.lastKnown.latestAt,NOW-11*60000);
+ const p=computePulse([row('sleeping',16,35)],NOW);assert.equal(p.reportingInstallations,null);
+ assert.equal(p.providers.claude.now,null);assert.equal(p.providers.claude.lastKnown.medianUsed,35);assert.equal(p.providers.claude.lastKnown.latestAt,NOW-16*60000);
 });

@@ -30,19 +30,21 @@ export function QuotaBoard(){
    try{const r=await fetch(API+'/api/downloads',{credentials:'omit',signal:c.signal});const v=r.ok?await r.json():null;if(active&&v&&Number.isSafeInteger(v.total)&&v.total>0)setDownloads(v.total);}catch{}finally{window.clearTimeout(timeout);}}
   void load();const t=window.setInterval(()=>void load(),600000);return()=>{active=false;request?.abort();window.clearInterval(t);};
  },[demo]);
- const [pulseError,setPulseError]=useState(false);
+ const [pulseError,setPulseError]=useState(false),[pulseAt,setPulseAt]=useState<number|null>(null);
  useEffect(()=>{let active=true;let request:AbortController|null=null;
   async function load(){if(demo){setPulse(createDemoPulse());return;}request?.abort();const c=new AbortController();request=c;
    const timeout=window.setTimeout(()=>c.abort(),10000);
-   try{const r=await fetch(API+'/api/pulse',{credentials:'omit',cache:'no-store',signal:c.signal});if(!r.ok)throw new Error();const v:unknown=await r.json();if(!isPulse(v))throw new Error();if(active&&request===c){setPulse(v);setPulseError(false);}}
+   try{const r=await fetch(API+'/api/pulse',{credentials:'omit',cache:'no-store',signal:c.signal});if(!r.ok)throw new Error();const v:unknown=await r.json();if(!isPulse(v))throw new Error();if(active&&request===c){setNow(Date.now());setPulse(v);setPulseError(false);setPulseAt(Date.now());}}
    catch{if(active&&!c.signal.aborted)setPulseError(true);else if(active&&request===c)setPulseError(true);}
    finally{window.clearTimeout(timeout);}}
-  const resume=()=>{if(document.visibilityState==='visible')void load();};void load();
+  // Refresh the clock first: a tab waking from sleep must not judge a fresh pulse against a pre-sleep time.
+  const resume=()=>{setNow(Date.now());if(document.visibilityState==='visible')void load();};void load();
   const t=window.setInterval(resume,30000);window.addEventListener('online',resume);document.addEventListener('visibilitychange',resume);
   return()=>{active=false;request?.abort();window.clearInterval(t);window.removeEventListener('online',resume);document.removeEventListener('visibilitychange',resume);};
  },[demo,attempt]);
- const recentPulse=pulse&&now-pulse.generatedAt<10*60000&&pulse.generatedAt<=now+60000?pulse:null;
- const freshSummary=(v:Pulse['providers']['claude']['now'])=>v&&(!v.latestAt||now-v.latestAt<=10*60000)?v:null;
+ const freshMinutes=pulse&&Number.isFinite(pulse.freshnessMinutes)&&pulse.freshnessMinutes!>0?pulse.freshnessMinutes!:10,freshMs=freshMinutes*60000;
+ const recentPulse=pulse&&now-pulse.generatedAt<freshMs&&pulse.generatedAt<=now+120000?pulse:null;
+ const freshSummary=(v:Pulse['providers']['claude']['now'])=>v&&(!v.latestAt||now-v.latestAt<=freshMs)?v:null;
  const livePulse=recentPulse?{...recentPulse,providers:{claude:{...recentPulse.providers.claude,now:freshSummary(recentPulse.providers.claude.now)},codex:{...recentPulse.providers.codex,now:freshSummary(recentPulse.providers.codex.now)}}}:null;
  useEffect(()=>{const c=livePulse?.providers.claude.now,pr=livePulse?.providers.claude.previous;document.title=c?`${pr?(c.atLimit>pr.atLimit?'↑':c.atLimit<pr.atLimit?'↓':'='):''} Claude ${c.atLimit}% at limit · throttleindex`:'throttleindex · are the limits shrinking?';},[livePulse]);
  useEffect(()=>{
@@ -51,7 +53,7 @@ export function QuotaBoard(){
    if(demo){if(active){setData(createDemoAllowance());setError(false);setNow(Date.now());setLoading(false);}return;}
    controller.current?.abort();const c=new AbortController();controller.current=c;const timeout=window.setTimeout(()=>c.abort(),10000);setLoading(true);
    try{const response=await fetch(API+'/api/allowance',{signal:c.signal,credentials:'omit',cache:'no-store'});if(!response.ok)throw new Error();const value:unknown=await response.json();if(!isAllowanceCommunity(value))throw new Error();if(active){setData(value);setError(false);setNow(Date.now());}}
-   catch{if(active)setError(true);}finally{window.clearTimeout(timeout);if(active)setLoading(false);}
+   catch{if(active&&(!c.signal.aborted||controller.current===c))setError(true);}finally{window.clearTimeout(timeout);if(active)setLoading(false);}
   }
   void load();const interval=window.setInterval(()=>{setNow(Date.now());if(document.visibilityState==='visible')void load();},60000);
   return()=>{active=false;controller.current?.abort();window.clearInterval(interval);};
@@ -62,6 +64,7 @@ export function QuotaBoard(){
  return <section className="quota-board minimal-quota allowance-board clean" aria-label="Claude and Codex limits">
   {demo&&<aside className="demo-notice" aria-label="Demo data notice"><span>Demo · made-up numbers</span><a href={window.location.pathname}>Exit demo</a></aside>}
   <h1 className="headline">did they just nerf the limits? again!?</h1>
+  {!demo&&<div className="live-status" role="status"><span>{pulseAt?`Live data checked ${ago(pulseAt)} · updates every 30s`:'Connecting to live data…'}</span><button type="button" onClick={()=>{setNow(Date.now());setAttempt(v=>v+1);}}>Refresh now</button></div>}
   {(pulseError||((error||stale)&&!livePulse?.providers.claude.now&&!livePulse?.providers.codex.now))&&<div className="collector-notice" role="status"><Info size={13}/><span>{pulseError?'Live connection interrupted. Last received readings are kept briefly.':stale?'Allowance evidence is stale. Live usage is separate.':'Can’t reach the data right now.'} <button onClick={()=>setAttempt(v=>v+1)}>Retry</button></span></div>}
   <div className="provider-stack">{(['claude','codex'] as const).map(provider=>{
    const kind='five_hour';
@@ -84,7 +87,7 @@ export function QuotaBoard(){
     <div className="provider-reading"><div className={`pressure-track segmented-track ${ready?'':'no-readings'} ${showingLastKnown?'last-known':''}`} role="img" title={showingLastKnown?'Last reported usage, not a live session':showingLive?`Live rounded five-hour usage from ${live!.now!.installs} recently reporting ${live!.now!.installs===1?'Mac':'Macs'}`:allowanceReady&&cohort!.interval?`Likely ${range(cohort!)} · ${cohort!.contributors} ${plan(cohort!.plan)} users on ${model(cohort!.model)} · updated ${ago(cohort!.latestAt!)}`:undefined} aria-label={index===null?'No data yet':showingLastKnown?`${index}% last reported usage, not live.`:showingLive?`${index}% used in the current five-hour window.`:`${index}% of last week's 5-hour allowance. A full bar means no change.`}>
      {Array.from({length:40},(_,i)=><i key={i} aria-hidden="true" className={`quota-segment ${i<filled?'is-filled':ready&&tone==='decreased'?'is-lost':''}`}/>)}
     </div></div>
-    <p className={`one-line tone-${tone}`}>{loading&&!data&&!showingLive?'Checking…':showingLive?<span>Live 5-hour usage: <b>{index}% used</b> · {live!.now!.installs} {live!.now!.installs===1?'Mac reported':'Macs reported'} in the last 10m{live!.now!.latestAt?` · ${ago(live!.now!.latestAt)}`:''}</span>:allowanceReady?<span>Your 5-hour window now lasts <b>~{runway(index!)}</b></span>:showingLastKnown?<span>Last reported: <b>{index}% used</b> · {live!.lastKnown!.latestAt?ago(live!.lastKnown!.latestAt):'earlier'} · not live</span>:'Waiting for a fresh opted-in Miso report.'}{live?.now&&<span className="live-bit"><i className="live-dot" aria-hidden="true"/><span>{live.now.atLimit}% hitting the limit now{d!==null&&d!==0&&<em className={d>0?'worse':'better'}>{d>0?' ↑':' ↓'}</em>}</span></span>}</p>
+    <p className={`one-line tone-${tone}`}>{loading&&!data&&!showingLive?'Checking…':showingLive?<span>Live 5-hour usage: <b>{index}% used</b> · {live!.now!.installs} {live!.now!.installs===1?'Mac reported':'Macs reported'} in the last {freshMinutes}m{live!.now!.latestAt?` · ${ago(live!.now!.latestAt)}`:''}</span>:allowanceReady?<span>Your 5-hour window now lasts <b>~{runway(index!)}</b></span>:showingLastKnown?<span>Last reported: <b>{index}% used</b> · {live!.lastKnown!.latestAt?ago(live!.lastKnown!.latestAt):'earlier'} · not live</span>:'Waiting for a fresh opted-in Miso report.'}{live?.now&&<span className="live-bit"><i className="live-dot" aria-hidden="true"/><span>{live.now.atLimit}% hitting the limit now{d!==null&&d!==0&&<em className={d>0?'worse':'better'}>{d>0?' ↑':' ↓'}</em>}</span></span>}</p>
     {groups.length>1&&<label className="evidence-group"><span className="sr-only">{provider==='claude'?'Claude':'OpenAI'} group</span><select aria-label={`${provider==='claude'?'Claude':'OpenAI'} evidence group`} value={cohort?key(cohort):''} onChange={event=>setSelection(previous=>({...previous,[provider]:event.target.value}))}>{!cohort&&<option value="" disabled>Select a group</option>}{groups.map(c=><option key={key(c)} value={key(c)}>{groupLabel(c)}</option>)}</select></label>}
    </article>;
   })}</div>

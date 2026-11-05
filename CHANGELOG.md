@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.9.5 - Visible update and refresh, steadier live data
+
+- Show an **Update x.y.z** button in the popover footer when a newer release exists. The update dialog now opens in front of other windows.
+- Refresh (button and Cmd-R) and opening the popover now read quotas even when Claude Code or Codex is not running. The open popover refreshes at most once a minute. Automatic background polling still pauses outside provider sessions.
+- Make the refresh button always visible and clickable; it shows progress, and opens Connect when quota access is off. Keep the last measured reading visible when the provider app closes.
+- Show the dashboard-contribution invitation once on first launch of an updated build, as documented. It never grants consent; declining is remembered.
+- Round reset times up so reports in a window's final five minutes are not rejected. Fall back to the default collector if the saved server setting is missing after consent.
+- Collector: keep live readings for 15 minutes (5-minute flooring plus one polling interval), refresh the community cache on new reports, and honour the configured read origin.
+- Web: re-sync the clock on tab wake so fresh live data is not discarded, honour the server freshness window, show when live data was last checked with a Refresh now button, and ignore self-cancelled allowance requests.
+
 ## 1.9.4 - Reporting reliability and truthful connection status
 
 - Show inline website state and per-provider last server acknowledgement in Connection details, with running version/path and duplicate app-copy diagnostics.

@@ -77,6 +77,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             DispatchQueue.main.async { self.verifyQuotaMenu(menu) }
             return
         }
+        // README promise: the first launch of an updated build offers (never grants) dashboard contribution.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.offerContributionInvitation() }
         timer = Timer(timeInterval: 0.25, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
         RunLoop.main.add(timer!, forMode: .common)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(didWake), name: NSWorkspace.didWakeNotification, object: nil)
@@ -113,6 +115,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         frame = (frame + 1) % 8
         activity.refreshIfDue { [weak self] active in self?.quotas.setActiveProviders(active) }
         quotas.refreshIfDue()
+        // An open popover is someone looking at the numbers: keep them fresh even between coding sessions.
+        if popover.isShown { quotas.refreshVisibleIfDue() }
         update()
     }
 
@@ -228,12 +232,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         case .unavailable(let reason): if manual { communityAlert("Update check failed", reason) }
         case .available(let update):
             availableUpdate = update
+            dashboard.updateVersion = update.version
             if manual || settings.string(forKey: "offeredMisoVersion") != update.version { showUpdateAlert(update) }
         }
     }
-    @objc private func openUpdate(_ sender: NSMenuItem) { if let availableUpdate { showUpdateAlert(availableUpdate) } }
+    @objc private func openUpdate(_ sender: NSMenuItem) { openAvailableUpdate() }
+    private func openAvailableUpdate() {
+        if let availableUpdate { showUpdateAlert(availableUpdate) } else { checkForUpdates() }
+    }
     private func showUpdateAlert(_ update: MisoUpdate) {
         guard NSApp.modalWindow == nil else { return } // The menu action remains available if a dialog is already open.
+        // A menu-bar (accessory) app must come to the front, or the alert opens behind other windows.
+        popover.performClose(nil)
+        NSApp.activate(ignoringOtherApps: true)
         settings.set(update.version, forKey: "offeredMisoVersion")
         let alert=NSAlert(); alert.messageText="Miso \(update.version) is available"
         alert.informativeText="This version does not install updates itself. If installed with Homebrew, quit Miso and run:\n\nbrew update && brew upgrade --cask relay-harness/tap/relay-cat\n\nFor a manual installation, view the release. Keep only one installed app copy."
@@ -256,6 +267,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         RelayCatDashboard(model: dashboard, actions: DashboardActions(
             enable: { [weak self] in self?.toggleQuotas() },
             refresh: { [weak self] in self?.refreshDashboard() },
+            update: { [weak self] in self?.openAvailableUpdate() },
             gemini: { [weak self] in self?.connectGemini() },
             tokens: { [weak self] in self?.toggleTokenStats() },
             settings: { [weak self] in self?.showSettings() },
@@ -296,7 +308,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         dashboard.showingStats = false
         dashboard.selected = quotas.displayedProvider
         dashboard.sync()
-        quotas.refreshIfDue()
+        // Opening the popover is a user request; it refreshes even when Claude Code/Codex is not running.
+        quotas.refreshVisibleIfDue()
         guard let button = status.button else { return }
         let available = button.window?.screen?.visibleFrame.size ?? NSScreen.main?.visibleFrame.size ?? CGSize(width: 800, height: 600)
         applyDashboardSize(DashboardLayout.size(for: available, expanded: dashboard.expandedLayout))
@@ -311,7 +324,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
     @objc private func refreshDashboard() {
         if !quotas.enabled && !quotas.tokensEnabled { toggleQuotas(); return }
-        quotas.refresh(requested: ProviderSelection.optional.contains(dashboard.selected) ? [dashboard.selected] : nil); quotas.refreshTokens()
+        quotas.refresh(requested: ProviderSelection.optional.contains(dashboard.selected) ? [dashboard.selected] : quotas.userRequestedProviders); quotas.refreshTokens()
     }
     @objc private func toggleTokenStats() {
         if quotas.tokensEnabled { quotas.setTokensEnabled(false); return }
@@ -598,7 +611,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
         return true
     }
-    @objc private func refreshQuotas() { quotas.refresh() }
+    @objc private func refreshQuotas() { quotas.refresh(requested: quotas.userRequestedProviders) }
     @objc private func toggleQuotaInBar() { quotas.toggleInBar() }
     @objc private func selectQuotaInBar(_ sender: NSMenuItem) {
         if let id = sender.representedObject as? String, let provider = QuotaProvider(rawValue: id) { quotas.setDisplayed(provider) }
