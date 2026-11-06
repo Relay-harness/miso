@@ -13,7 +13,7 @@ export type LimitChange=
 // Only a change from the past 7 days sets the figure; an older one is shown as the last change.
 // Update this by hand, and move ANNOUNCEMENTS_CHECKED forward each time the list is checked. Past 7 days without a check,
 // the bars stop saying no change was announced. A percent must trace back to the provider's own statement.
-export const ANNOUNCEMENTS_CHECKED='2026-11-07';
+export const ANNOUNCEMENTS_CHECKED='2026-11-06';
 export const ANNOUNCEMENTS:Announcement[]=[
  {provider:'claude',percent:null,date:'2026-10-30',headline:'Ultra plan dropped 5-hour limit',detail:'Max 20x became Ultra. Verified accounts have no 5-hour limit and the weekly limit is unchanged. Not measured by Miso.',source:'Anthropic',url:'https://support.claude.com/en/articles/17728952-what-is-the-ultra-plan'},
  {provider:'codex',percent:100,date:'2026-10-29',headline:'Pro plans doubled',detail:'Work and Codex allowance doubled on Pro 100 and Pro 500, and on Pro 200 for the lower allowance. A planned Pro 200 cut was canceled. Plus unchanged. Not measured by Miso.',source:'OpenAI',url:'https://help.openai.com/en/articles/9793128-about-chatgpt-pro-tiers'},
