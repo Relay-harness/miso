@@ -47,6 +47,16 @@ test('empty or unreachable data never shows numbers',async()=>{
  await p.unroute('**/api/pulse');await p.route('**/api/pulse',r=>r.fulfill({status:503,body:'unavailable'}));await p.evaluate(()=>window.dispatchEvent(new Event('online')));
  await p.getByText('Can’t reach the data right now.',{exact:false}).waitFor();await p.close();
 });
+test('reports are counted under the bar, link out, and never fill it',async()=>{
+ const t=Math.floor(Date.now()/1000),hit=(id,title,days)=>({objectID:id,title,author:'a',created_at_i:t-days*86400,points:0,num_comments:0});
+ const p=await browser.newPage();await p.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total:null,source:'x'}}));await p.route('**/api/allowance',r=>r.fulfill({json:{schema:1,method:'paired-controlled-workload-v1',generatedAt:Date.now(),freshnessMinutes:10,minCohort:10,currentDays:1,baselineDays:6,materialChangePercent:15,reportingInstallations:null,cohorts:[],limitations:[]}}));await p.route('**/api/pulse',r=>r.fulfill({json:createDemoPulse(Date.now())}));
+ await p.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[hit('1','Claude Pro session limit reduced from 80 to 20 prompts',1),hit('2','Claude Pro weekly quota exhausted after 12 tasks',9)]}}));await p.goto(url);
+ const line=p.locator('.claude .reports-note');await line.waitFor();assert.equal(await line.innerText(),'Unverified reports on Hacker News: 1 this week, 1 last week · read one');
+ assert.equal(await line.getByRole('link',{name:'read one'}).getAttribute('href'),'https://news.ycombinator.com/item?id=1');
+ assert.equal(await p.locator('.codex .reports-note').innerText(),'No limit reports on Hacker News in the past 2 weeks.');
+ assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'-');assert.equal(await p.locator('.quota-segment.is-filled').count(),0);await p.close();
+ const q=await browser.newPage();await q.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total:null,source:'x'}}));await q.route('https://hn.algolia.com/**',r=>r.fulfill({status:503,body:'down'}));await q.route('**/api/pulse',r=>r.fulfill({json:createDemoPulse(Date.now())}));await q.goto(url);await q.locator('.claude .usage-note').waitFor();await q.waitForTimeout(400);assert.equal(await q.locator('.reports-note').count(),0);await q.close();
+});
 test('install command can be copied',async()=>{
  const ctx=await browser.newContext({permissions:['clipboard-read','clipboard-write']});const p=await ctx.newPage();await open(p,createDemoPulse(Date.now()));
  await p.getByRole('button',{name:'Copy'}).click();await p.getByRole('button',{name:'Copied'}).waitFor();

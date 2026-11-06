@@ -6,6 +6,8 @@ import type {Pulse} from './pulse-data';
 import {isAllowanceCommunity} from './allowance-data';
 import type {AllowanceCommunity,AllowanceCohort} from './allowance-data';
 import {limitChange} from './limit-change';
+import {loadLimitPosts,reportCounts} from './limit-posts';
+import type {LimitPost} from './limit-posts';
 const plan=(p:string)=>({pro:'Pro',max_5x:'Max 5x',max_20x:'Max 20x',plus:'Plus'} as Record<string,string>)[p]??p;
 const model=(m:string)=>m.replace(/^gpt-(\d+)-(\d+)-codex$/,'GPT-$1.$2 Codex').replace(/^gpt-5-codex$/,'GPT-5 Codex').replace(/^(sonnet|opus|haiku)-(\d+)(?:-(\d+))?$/,(_,n,a,b)=>n[0].toUpperCase()+n.slice(1)+' '+a+(b?'.'+b:''));
 const ago=(t:number)=>{const m=Math.max(0,Math.round((Date.now()-t)/60000));return m<1?'just now':m<60?`${m}m ago`:`${Math.round(m/60)}h ago`;};
@@ -66,6 +68,13 @@ export function QuotaBoard(){
   void load();const interval=window.setInterval(()=>{setNow(Date.now());if(document.visibilityState==='visible')void load();},60000);
   return()=>{active=false;controller.current?.abort();window.clearInterval(interval);};
  },[attempt,demo]);
+ const [reports,setReports]=useState<LimitPost[]|null>(null);
+ // A partial result would undercount, so the line only appears when every search answered.
+ useEffect(()=>{if(demo)return;let active=true;
+  const load=async()=>{try{const r=await loadLimitPosts();if(active)setReports(r.failures?null:r.posts);}catch{if(active)setReports(null);}};
+  void load();const t=window.setInterval(()=>{if(document.visibilityState==='visible')void load();},300000);
+  return()=>{active=false;window.clearInterval(t);};
+ },[demo]);
  const stale=!!data&&(now-data.generatedAt>data.freshnessMinutes*60000||data.generatedAt>now+60000);
  const available=!!data&&!error&&!stale;
  return <section className="quota-board minimal-quota allowance-board clean" aria-label="Claude and Codex limits">
@@ -81,6 +90,7 @@ export function QuotaBoard(){
    const usage=!demo?members?.providers[provider]??null:null;
    const change=limitChange(provider,cohort,now);
    const label=provider==='claude'?'Claude':'OpenAI';
+   const said=reports?reportCounts(reports,label,now):null;
    const figure=change.state==='cut'?`−${change.percent}%`:change.state==='extra'?`+${change.percent}%`:change.state==='normal'?'Normal':change.state==='unclear'?'Unclear':'-';
    const tone=change.state==='cut'?'decreased':change.state==='extra'?'increased':'neutral';
    const measured=!change.announcement&&change.state!=='unknown'&&!!cohort?.interval;
@@ -93,6 +103,7 @@ export function QuotaBoard(){
     </div></div>
     <p className={`one-line tone-${tone}`}>{loading&&!data&&change.state==='unknown'?'Checking…':change.state==='cut'?<span><b>Limit cut.</b> {change.percent}% lower{change.announcement?'':' than the past week'}{source}</span>:change.state==='extra'?<span><b>Extra limit.</b> {change.percent}% higher{change.announcement?'':' than the past week'}{source}</span>:change.state==='normal'?<span><b>Normal.</b> No change from the past week{source}</span>:change.state==='unclear'?<span><b>Unclear.</b> The measurements disagree{source}</span>:<span><b>Not measured yet.</b> {provider==='claude'?'Needs 10 Macs on the same plan running Miso’s calibration.':'Miso can’t calibrate Codex yet.'}</span>}</p>
     {usage&&<p className="usage-note">Typical 5-hour use: {usage.medianUsed}%</p>}
+    {said&&<p className="reports-note">{said.thisWeek||said.lastWeek?<>Unverified reports on Hacker News: {said.thisWeek} this week, {said.lastWeek} last week{said.top&&<> · <a href={`https://news.ycombinator.com/item?id=${said.top.id}`} target="_blank" rel="noopener noreferrer" title={said.top.title}>read one</a></>}</>:'No limit reports on Hacker News in the past 2 weeks.'}</p>}
     {groups.length>1&&<label className="evidence-group"><span className="sr-only">{provider==='claude'?'Claude':'OpenAI'} group</span><select aria-label={`${provider==='claude'?'Claude':'OpenAI'} evidence group`} value={cohort?key(cohort):''} onChange={event=>setSelection(previous=>({...previous,[provider]:event.target.value}))}>{!cohort&&<option value="" disabled>Select a group</option>}{groups.map(c=><option key={key(c)} value={key(c)}>{groupLabel(c)}</option>)}</select></label>}
    </article>;
   })}</div>

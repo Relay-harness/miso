@@ -89,7 +89,8 @@ main.sketch-layout{max-width:var(--wrap);margin:0 auto;padding:var(--s-7) var(--
 .one-line.tone-decreased b{color:var(--accent)}
 .one-line.tone-increased b{color:var(--calm)}
 .one-line a{color:var(--text);text-decoration:underline;text-underline-offset:3px}
-.usage-note{margin-top:var(--s-1);font-size:var(--t-14);color:var(--muted)}
+.usage-note,.reports-note{margin-top:var(--s-1);font-size:var(--t-14);color:var(--muted)}
+.reports-note a{color:var(--text);text-decoration:underline;text-underline-offset:3px}
 .live-bit{display:inline-flex;align-items:center;gap:var(--s-2);font:var(--t-14)/1.4 var(--mono)}
 .live-bit em{font-style:normal}.live-bit .worse{color:var(--accent)}.live-bit .better{color:var(--calm)}
 .live-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:live 2s infinite}

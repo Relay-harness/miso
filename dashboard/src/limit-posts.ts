@@ -65,3 +65,29 @@ export function limitSearchURL(query:string,now=Date.now()):string {
  const params=new URLSearchParams({query,tags:'story',hitsPerPage:'60',numericFilters:`created_at_i>${Math.floor((now-REPORT_MAX_AGE)/1000)}`});
  return 'https://hn.algolia.com/api/v1/search_by_date?'+params;
 }
+const WEEK=7*86400000;
+export type ReportCounts={thisWeek:number;lastWeek:number;top:LimitPost|null};
+// Counts posts that pass parseLimitPost. They are unverified reports and never become a limit-change figure.
+export function reportCounts(posts:LimitPost[],provider:'Claude'|'OpenAI',now=Date.now()):ReportCounts {
+ const mine=rankLimitPosts(posts.filter(p=>p.providers.includes(provider)),now);
+ const recent=mine.filter(p=>p.created>=now-WEEK);
+ return {thisWeek:recent.length,lastWeek:mine.filter(p=>p.created<now-WEEK&&p.created>=now-2*WEEK).length,top:recent[0]??null};
+}
+export type LimitPostResult={posts:LimitPost[];failures:number;searches:number};
+let recentLoad:{at:number;result:Promise<LimitPostResult>}|null=null;
+// The side panel and the bars share one set of requests.
+export function loadLimitPosts(now=Date.now()):Promise<LimitPostResult> {
+ if(recentLoad&&now-recentLoad.at<240000)return recentLoad.result;
+ const searches=LIMIT_SEARCHES.filter(s=>s.provider!=='Gemini');
+ const result=Promise.allSettled(searches.map(async search=>{
+  const res=await fetch(limitSearchURL(search.query,now),{signal:AbortSignal.timeout(10000),credentials:'omit',referrerPolicy:'no-referrer'});
+  if(!res.ok)throw new Error();const body=await res.json();if(!Array.isArray(body.hits))throw new Error();
+  return body.hits.map((hit:unknown)=>parseLimitPost(hit,now)).filter((p:LimitPost|null):p is LimitPost=>p!==null) as LimitPost[];
+ })).then(results=>{
+  const failures=results.filter(r=>r.status==='rejected').length;
+  if(failures)recentLoad=null;
+  return {posts:rankLimitPosts(results.flatMap(r=>r.status==='fulfilled'?r.value:[]),now),failures,searches:searches.length};
+ });
+ recentLoad={at:now,result};
+ return result;
+}
