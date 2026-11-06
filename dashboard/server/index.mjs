@@ -6,9 +6,7 @@ import {fileURLToPath} from 'node:url';
 import {SignalStore,SignalError} from './store.mjs';
 
 // Public download total from GitHub releases (ZIP assets only). Cached; null when GitHub is unreachable.
-let downloadsCache={value:null,faces:[],at:0};
-// Up to three public GitHub profile photos of people who starred the repo. Only the login and a URL built from the numeric id leave here.
-export function stargazerFaces(list){return (Array.isArray(list)?list:[]).filter(u=>Number.isSafeInteger(u?.id)&&u.id>0&&typeof u.login==='string'&&/^[A-Za-z0-9-]{1,39}$/.test(u.login)).slice(0,3).map(u=>({login:u.login,avatar:`https://avatars.githubusercontent.com/u/${u.id}?s=64&v=4`}));}
+let downloadsCache={value:null,at:0};
 async function releaseDownloads(clock){
  if(clock()-downloadsCache.at<600000)return downloadsCache.value;
  downloadsCache.at=clock();
@@ -16,8 +14,6 @@ async function releaseDownloads(clock){
   if(!r.ok)throw new Error();const list=await r.json();
   const total=list.filter(x=>!x.draft).flatMap(x=>x.assets||[]).filter(a=>/\.zip$/.test(a.name)).reduce((n,a)=>n+(Number.isSafeInteger(a.download_count)?a.download_count:0),0);
   downloadsCache.value=total;}catch{}
- try{const r=await fetch('https://api.github.com/repos/Relay-harness/miso/stargazers?per_page=3',{headers:{'Accept':'application/vnd.github+json','User-Agent':'throttleindex'},signal:AbortSignal.timeout(5000)});
-  if(!r.ok)throw new Error();downloadsCache.faces=stargazerFaces(await r.json());}catch{}
  return downloadsCache.value;
 }
 export function createService({path=':memory:',minCohort=5,clock=()=>Date.now(),allowedOrigin='',staticDirectory=null,clientIpHeader=''}={}){
@@ -31,7 +27,7 @@ export function createService({path=':memory:',minCohort=5,clock=()=>Date.now(),
   if(req.method==='GET'&&pathname==='/api/community'){if(!cached||clock()-cachedAt>=15000){cached=store.aggregate();cachedAt=clock();}return reply(200,cached);}
   if(req.method==='GET'&&pathname==='/api/allowance'){if(!allowanceCached||clock()-allowanceCachedAt>=15000){allowanceCached=store.aggregateAllowance();allowanceCachedAt=clock();}return reply(200,allowanceCached);}
   if(req.method==='GET'&&pathname==='/api/pulse'){if(!pulseCached||clock()-pulseCachedAt>=15000){pulseCached=store.pulse();pulseCachedAt=clock();}return reply(200,pulseCached);}
-  if(req.method==='GET'&&pathname==='/api/downloads'){const total=process.env.MISO_OFFLINE_DOWNLOADS!==undefined?Number(process.env.MISO_OFFLINE_DOWNLOADS):await releaseDownloads(clock);return reply(200,{schema:1,total:Number.isSafeInteger(total)?total:null,faces:process.env.MISO_OFFLINE_DOWNLOADS!==undefined?[]:downloadsCache.faces,source:'github-release-zip-downloads'});}
+  if(req.method==='GET'&&pathname==='/api/downloads'){const total=process.env.MISO_OFFLINE_DOWNLOADS!==undefined?Number(process.env.MISO_OFFLINE_DOWNLOADS):await releaseDownloads(clock);return reply(200,{schema:1,total:Number.isSafeInteger(total)?total:null,source:'github-release-zip-downloads'});}
   if(req.method==='GET'&&pathname==='/health')return reply(200,{ok:true});
   if(req.method==='GET'&&staticDirectory){
    let decoded;try{decoded=decodeURIComponent(pathname);}catch{return reply(400,{error:'Invalid path'});}
