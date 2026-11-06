@@ -75,6 +75,7 @@ main.sketch-layout{max-width:var(--wrap);margin:0 auto;padding:var(--s-7) var(--
 .gauge-number.tone-decreased>strong{color:var(--accent)}
 .gauge-number.tone-increased>strong{color:var(--calm)}
 .gauge-number.is-word>strong{font-size:var(--t-22);line-height:1.2;letter-spacing:-.02em}
+@media (max-width:480px){.gauge-number.is-word>strong{font-size:var(--t-16)}.provider-line h2{flex-wrap:nowrap}}
 
 .provider-reading{margin-top:var(--s-4)}
 .segmented-track{display:grid;grid-template-columns:repeat(40,1fr);gap:4px;height:56px}

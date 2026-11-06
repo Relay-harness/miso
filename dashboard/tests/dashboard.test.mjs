@@ -16,11 +16,11 @@ test('allowance baseline, windows, uncertainty and bar scale do not display quot
  assert.equal(await p.getByText('Why this exists').count(),0);await p.close();
 });
 test('insufficient and stale evidence falls back to the last announcement, never usage or sample counts',async()=>{
- const p=await browser.newPage();await setup(p,{ready:false});await p.locator('.claude .one-line').getByText('Announced',{exact:false}).waitFor();assert.deepEqual(await p.locator('.gauge-number strong').allTextContents(),['−17%','+100%']);assert.equal(await p.locator('.checkin-row').count(),0);
- await p.unroute('**/api/allowance');await p.route('**/api/allowance',r=>r.fulfill({json:aggregate({stale:true})}));await p.reload();await p.getByText('Allowance evidence is stale.',{exact:false}).waitFor();assert.equal(await p.locator('.gauge-number strong').first().innerText(),'−17%');await p.close();
+ const p=await browser.newPage();await setup(p,{ready:false});await p.locator('.claude .one-line').getByText('Last:',{exact:false}).waitFor();for(const t of await p.locator('.gauge-number strong').allTextContents())assert.match(t,/^(?:No change|Last) announced$/);assert.equal(await p.locator('.checkin-row').count(),0);
+ await p.unroute('**/api/allowance');await p.route('**/api/allowance',r=>r.fulfill({json:aggregate({stale:true})}));await p.reload();await p.getByText('Allowance evidence is stale.',{exact:false}).waitFor();assert.match(await p.locator('.gauge-number strong').first().innerText(),/^(?:No change|Last) announced$/);await p.close();
 });
 test('usage-only or malformed API responses cannot become allowance evidence',async()=>{
- const p=await browser.newPage();await setup(p);await p.unroute('**/api/allowance');await p.route('**/api/allowance',r=>r.fulfill({json:{schema:1,generatedAt:Date.now(),minCohort:5,cohorts:[{medianUsed:100}]}}));await p.reload();await p.getByText('Can’t reach the data right now.',{exact:false}).waitFor();assert.deepEqual(await p.locator('.gauge-number strong').allTextContents(),['−17%','+100%']);await p.close();
+ const p=await browser.newPage();await setup(p);await p.unroute('**/api/allowance');await p.route('**/api/allowance',r=>r.fulfill({json:{schema:1,generatedAt:Date.now(),minCohort:5,cohorts:[{medianUsed:100}]}}));await p.reload();await p.getByText('Can’t reach the data right now.',{exact:false}).waitFor();for(const t of await p.locator('.gauge-number strong').allTextContents())assert.match(t,/^(?:No change|Last) announced$/);await p.close();
 });
 test('plan/model/context groups stay separate and unavailable selection is not silently replaced',async()=>{
  const p=await browser.newPage();const data=aggregate();data.cohorts.push({...data.cohorts[0],plan:'max_5x',model:'opus-4-5',index:100,status:'no_detectable_change',interval:[95,105]});
