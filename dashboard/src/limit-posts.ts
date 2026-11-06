@@ -65,13 +65,6 @@ export function limitSearchURL(query:string,now=Date.now()):string {
  const params=new URLSearchParams({query,tags:'story',hitsPerPage:'60',numericFilters:`created_at_i>${Math.floor((now-REPORT_MAX_AGE)/1000)}`});
  return 'https://hn.algolia.com/api/v1/search_by_date?'+params;
 }
-const WEEK=7*86400000;
-export type ReportCounts={thisWeek:number;lastWeek:number};
-// Counts posts that pass parseLimitPost. They are unverified reports and never become a limit-change figure.
-export function reportCounts(posts:LimitPost[],provider:'Claude'|'OpenAI',now=Date.now()):ReportCounts {
- const mine=rankLimitPosts(posts.filter(p=>p.providers.includes(provider)),now);
- return {thisWeek:mine.filter(p=>p.created>=now-WEEK).length,lastWeek:mine.filter(p=>p.created<now-WEEK&&p.created>=now-2*WEEK).length};
-}
 export type LimitPostResult={posts:LimitPost[];failures:number;searches:number};
 let recentLoad:{at:number;result:Promise<LimitPostResult>}|null=null;
 // The side panel and the bars share one set of requests.

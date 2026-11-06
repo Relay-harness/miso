@@ -25,12 +25,8 @@ test('only a change from the past 7 days sets the figure',()=>{
  assert.equal(limitChange('codex',undefined,NOW,[notice(100)]).state,'unknown');
  assert.equal(limitChange('claude',undefined,NOW,[notice(100,'2026-12-01')]).state,'unknown','a future date is not shown yet');
 });
-test('older changes become the last change, with no figure and a full bar',()=>{
- const q=limitChange('claude',undefined,NOW,[notice(-17,'2026-09-14'),notice(null,'2026-10-30')],'2026-11-07');assert.deepEqual([q.state,q.percent,q.filled,q.checked,q.announcement.date],['quiet',null,40,true,'2026-10-30']);
-});
-test('an unchecked list stops claiming that nothing was announced',()=>{
- assert.equal(limitChange('claude',undefined,NOW,[notice(5,'2026-05-06')],'2026-11-01').checked,true);
- assert.equal(limitChange('claude',undefined,NOW,[notice(5,'2026-05-06')],'2026-10-31').checked,false);
+test('older changes become the last change, with no figure and an empty bar',()=>{
+ const q=limitChange('claude',undefined,NOW,[notice(-17,'2026-09-14'),notice(null,'2026-10-30')]);assert.deepEqual([q.state,q.percent,q.filled,q.announcement.date],['quiet',null,0,'2026-10-30']);
 });
 test('the shipped list traces to each provider',()=>{
  for(const provider of ['claude','codex']){const a=limitChange(provider,undefined,Date.UTC(2026,10,7)).announcement;assert.ok(a,provider);assert.match(a.url,/^https:\/\/(support\.claude\.com|help\.openai\.com)\//);assert.ok(a.source&&a.headline&&a.detail);}

@@ -6,14 +6,12 @@ export type LimitChange=
  {state:'cut'|'extra';percent:number;filled:number;contributors:number|null;announcement:Announcement|null}|
  {state:'normal';percent:0;filled:40;contributors:number;announcement:null}|
  {state:'changed';percent:null;filled:40;contributors:null;announcement:Announcement}|
- {state:'quiet';percent:null;filled:40;contributors:null;announcement:Announcement;checked:boolean}|
+ {state:'quiet';percent:null;filled:0;contributors:null;announcement:Announcement}|
  {state:'unclear'|'unknown';percent:null;filled:0;contributors:number|null;announcement:null};
 
 // The latest change each provider announced, until Miso has its own measurements. Measured results always win.
 // Only a change from the past 7 days sets the figure; an older one is shown as the last change.
-// Update this by hand, and move ANNOUNCEMENTS_CHECKED forward each time the list is checked. Past 7 days without a check,
-// the bars stop saying no change was announced. A percent must trace back to the provider's own statement.
-export const ANNOUNCEMENTS_CHECKED='2026-11-07';
+// Update this by hand. A percent must trace back to the provider's own statement.
 export const ANNOUNCEMENTS:Announcement[]=[
  {provider:'claude',percent:null,date:'2026-10-30',headline:'Ultra plan dropped 5-hour limit',detail:'Max 20x became Ultra. Verified accounts have no 5-hour limit and the weekly limit is unchanged. Not measured by Miso.',source:'Anthropic',url:'https://support.claude.com/en/articles/17728952-what-is-the-ultra-plan'},
  {provider:'codex',percent:100,date:'2026-10-29',headline:'Pro plans doubled',detail:'Work and Codex allowance doubled on Pro 100 and Pro 500, and on Pro 200 for the lower allowance. A planned Pro 200 cut was canceled. Plus unchanged. Not measured by Miso.',source:'OpenAI',url:'https://help.openai.com/en/articles/9793128-about-chatgpt-pro-tiers'},
@@ -30,7 +28,7 @@ function current(list:Announcement[],provider:Announcement['provider'],now:numbe
  return live.sort((a,b)=>Date.parse(b.date)-Date.parse(a.date))[0]??null;
 }
 
-export function limitChange(provider:Announcement['provider'],cohort:AllowanceCohort|undefined,now:number,announcements:Announcement[]=ANNOUNCEMENTS,checked:string=ANNOUNCEMENTS_CHECKED):LimitChange{
+export function limitChange(provider:Announcement['provider'],cohort:AllowanceCohort|undefined,now:number,announcements:Announcement[]=ANNOUNCEMENTS):LimitChange{
  if(cohort&&cohort.status!=='insufficient'&&cohort.index!==null){
   const contributors=cohort.contributors;
   if(cohort.status==='decreased'){const percent=Math.max(0,100-cohort.index);return {state:'cut',percent,filled:remaining(percent),contributors,announcement:null};}
@@ -40,7 +38,7 @@ export function limitChange(provider:Announcement['provider'],cohort:AllowanceCo
  }
  const announcement=current(announcements,provider,now);
  if(announcement){
-  if(now-Date.parse(announcement.date)>=WEEK)return {state:'quiet',percent:null,filled:SEGMENTS,contributors:null,announcement,checked:now-Date.parse(checked)<WEEK};
+  if(now-Date.parse(announcement.date)>=WEEK)return {state:'quiet',percent:null,filled:0,contributors:null,announcement};
   const percent=announcement.percent;
   if(percent!==null&&percent<0)return {state:'cut',percent:-percent,filled:remaining(-percent),contributors:null,announcement};
   if(percent!==null&&percent>0)return {state:'extra',percent,filled:SEGMENTS,contributors:null,announcement};

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Website: until Miso has its own measurements, a percentage only shows for a change announced in the past 7 days. Otherwise the bar says no change was announced and links the last change. One short line sits under each bar, and typical usage, Hacker News report counts and fuller details appear on hover.
+- Website: until Miso has its own measurements, a percentage only shows for a change announced in the past 7 days. Otherwise the figure is a live count of limit reports from GitHub and Hacker News over the past 7 days, with one bar per day and the last announced change underneath. Typical usage and fuller details appear on hover.
 
 ## Unreleased
 

@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 const source=readFileSync(new URL('../src/limit-posts.ts',import.meta.url),'utf8');
 const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
-const {parseLimitPost,rankLimitPosts,limitSearchURL,reportCounts,REPORT_MAX_AGE}=await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
+const {parseLimitPost,rankLimitPosts,limitSearchURL,REPORT_MAX_AGE}=await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
 const now=1800000000000;
 const hit=(title,other={})=>({objectID:'123',title,author:'participant',created_at_i:(now-60000)/1000,points:0,num_comments:0,...other});
 test('requires specific subscription-limit reports, not generic AI news or popularity',()=>{
@@ -29,11 +29,4 @@ test('deduplicates and ranks concrete before/after evidence ahead of a newer bar
  assert.deepEqual(rankLimitPosts([newer,strong,strong],now).map(p=>p.id),['1','2']);
  assert.equal(rankLimitPosts([strong],now+REPORT_MAX_AGE).length,0);
  const url=new URL(limitSearchURL('Claude limit',now));assert.equal(url.searchParams.get('hitsPerPage'),'60');assert.ok(url.searchParams.get('numericFilters').startsWith('created_at_i>'));
-});
-test('report counts split by provider and week',()=>{
- const DAY=86400000,post=(id,title,ago)=>parseLimitPost(hit(title,{objectID:id,created_at_i:(now-ago*DAY)/1000}),now);
- const posts=[post('1','Claude Pro session limit reduced from 80 to 20 prompts',1),post('2','I hit Claude Pro session limit after 20 prompts',3),post('3','Claude Pro weekly quota exhausted after 12 tasks',9),post('4','Claude Pro session limit cut from 80 to 20 prompts',20),post('5','Codex Plus weekly quota exhausted after 12 tasks',2)];
- const c=reportCounts(posts,'Claude',now);assert.deepEqual([c.thisWeek,c.lastWeek],[2,1]);
- const o=reportCounts(posts,'OpenAI',now);assert.deepEqual([o.thisWeek,o.lastWeek],[1,0]);
- const old=reportCounts([posts[2]],'Claude',now);assert.deepEqual([old.thisWeek,old.lastWeek],[0,1]);
 });
