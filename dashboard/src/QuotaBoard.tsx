@@ -12,8 +12,10 @@ const name=(p:'claude'|'codex')=>p==='claude'?'Claude':'Codex';
 const runway=(index:number)=>{const m=Math.round(300*index/100/5)*5;const h=Math.floor(m/60),r=m%60;return h&&r?`${h}h ${r}m`:h?`${h}h`:`${r}m`;};
 const delta=(c:AllowanceCohort)=>Math.round((c.index??100)-100);
 const range=(c:AllowanceCohort)=>{const [lo,hi]=c.interval!;const f=(n:number)=>n===0?'0':(n>0?'+':'−')+Math.abs(n);const a=lo-100,b=hi-100;return a===b?f(a)+'%':Math.abs(a)>Math.abs(b)?`${f(b)} to ${f(a)}%`:`${f(a)} to ${f(b)}%`;};
-// 56 downloads reads as 50+, 104 as 100+. Below the first milestone, show the exact count.
-const downloadLabel=(n:number)=>n<50?n.toLocaleString():`${(Math.floor(n/50)*50).toLocaleString()}+`;
+// 56 downloads reads as 50+, 64 as 60+, 85 as 80+. Below 50 the count is exact; from 1,000 it steps by 100.
+const downloadLabel=(n:number)=>{if(n<50)return n.toLocaleString();const step=n<1000?10:100;return `${(Math.floor(n/step)*step).toLocaleString()}+`;};
+type Face={login:string;avatar:string};
+const isFace=(f:unknown):f is Face=>!!f&&typeof (f as Face).login==='string'&&typeof (f as Face).avatar==='string'&&/^https:\/\/avatars\.githubusercontent\.com\/u\/\d+\?s=64&v=4$/.test((f as Face).avatar);
 const INSTALL='brew install --cask relay-harness/tap/relay-cat';
 // Avoid the Vercel rewrite for browser reads; the collector permits this read-only origin.
 const API=['www.throttleindex.com','throttleindex.com'].includes(window.location.hostname)?'https://api.throttleindex.com':'';
@@ -26,10 +28,10 @@ export function QuotaBoard(){
  const [selection,setSelection]=useState({claude:'',codex:''}),[now,setNow]=useState(Date.now());
  const controller=useRef<AbortController|null>(null);
  const [pulse,setPulse]=useState<Pulse|null>(null);
- const [downloads,setDownloads]=useState<number|null>(null);
+ const [downloads,setDownloads]=useState<number|null>(null),[faces,setFaces]=useState<Face[]>([]);
  useEffect(()=>{if(demo)return;let active=true;let request:AbortController|null=null;
   async function load(){if(document.visibilityState!=='visible')return;request?.abort();const c=new AbortController();request=c;const timeout=window.setTimeout(()=>c.abort(),8000);
-   try{const r=await fetch(API+'/api/downloads',{credentials:'omit',signal:c.signal});const v=r.ok?await r.json():null;if(active&&v&&Number.isSafeInteger(v.total)&&v.total>0)setDownloads(v.total);}catch{}finally{window.clearTimeout(timeout);}}
+   try{const r=await fetch(API+'/api/downloads',{credentials:'omit',signal:c.signal});const v=r.ok?await r.json():null;if(active&&v&&Number.isSafeInteger(v.total)&&v.total>0){setDownloads(v.total);setFaces(Array.isArray(v.faces)?v.faces.filter(isFace).slice(0,3):[]);}}catch{}finally{window.clearTimeout(timeout);}}
   // A page opened in a background tab skips the first load; fetch as soon as it becomes visible.
   const onVisible=()=>{if(document.visibilityState==='visible')void load();};
   void load();const t=window.setInterval(()=>void load(),600000);document.addEventListener('visibilitychange',onVisible);
@@ -65,7 +67,7 @@ export function QuotaBoard(){
  return <section className="quota-board minimal-quota allowance-board clean" aria-label="Claude and Codex limits">
   {demo&&<aside className="demo-notice" aria-label="Demo data notice"><span>Demo · made-up numbers</span><a href={window.location.pathname}>Exit demo</a></aside>}
   <h1 className="headline">did they just nerf the limits? again!?</h1>
-  {!demo&&downloads!==null&&<div className="live-status" role="status"><a href="https://github.com/Relay-harness/miso/releases" rel="noreferrer">{downloadLabel(downloads)} {downloads===1?'download':'downloads'} on GitHub</a></div>}
+  {!demo&&downloads!==null&&<div className="live-status" role="status">{faces.length>0&&<a className="face-stack" href="https://github.com/Relay-harness/miso/stargazers" rel="noreferrer" title="People who starred Miso on GitHub" aria-label="People who starred Miso on GitHub">{faces.map(f=><img key={f.login} src={f.avatar} width={28} height={28} alt="" loading="lazy" referrerPolicy="no-referrer" onError={e=>{e.currentTarget.style.display='none';}}/>)}</a>}<a className="download-count" href="https://github.com/Relay-harness/miso/releases" rel="noreferrer">{downloadLabel(downloads)} {downloads===1?'download':'downloads'} on GitHub</a></div>}
   {(pulseError||((error||stale)&&!members?.providers.claude&&!members?.providers.codex))&&<div className="collector-notice" role="status"><Info size={13}/><span>{stale?'Allowance evidence is stale.':'Can’t reach the data right now.'} <button onClick={()=>setAttempt(v=>v+1)}>Retry</button></span></div>}
   <div className="provider-stack">{(['claude','codex'] as const).map(provider=>{
    const kind='five_hour';

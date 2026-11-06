@@ -54,7 +54,10 @@ main.sketch-layout{max-width:var(--wrap);margin:0 auto;padding:var(--s-7) var(--
 .headline{max-width:16ch;margin-bottom:var(--s-8);font:700 var(--t-head)/1.02 var(--sans);letter-spacing:-.04em;text-wrap:balance}
 .collector-notice{display:flex;align-items:center;gap:var(--s-2);margin:calc(var(--s-6) * -1) 0 var(--s-6);font-size:var(--t-14);color:var(--muted)}
 .live-status{display:flex;align-items:center;gap:var(--s-3);margin:calc(var(--s-6) * -1) 0 var(--s-6);font-size:var(--t-14);color:var(--muted)}
-.live-status a{color:inherit;text-decoration:underline;text-underline-offset:3px}
+.live-status .download-count{color:inherit;text-decoration:underline;text-underline-offset:3px}
+.face-stack{display:inline-flex;align-items:center;flex:none}
+.face-stack img{display:block;width:28px;height:28px;border-radius:50%;border:2px solid var(--bg);background:var(--raised);object-fit:cover}
+.face-stack img+img{margin-left:-9px}
 .live-status button{color:var(--text);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 .collector-notice button{color:var(--text);text-decoration:underline;text-underline-offset:3px}
 

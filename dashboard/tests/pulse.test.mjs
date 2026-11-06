@@ -16,16 +16,28 @@ test('member schema accepts the demo and rejects bad counts or numbers',()=>{
 async function open(page,pulse){await page.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));await page.route('**/api/allowance',r=>r.fulfill({json:{schema:1,method:'paired-controlled-workload-v1',generatedAt:Date.now(),freshnessMinutes:10,minCohort:10,currentDays:1,baselineDays:6,materialChangePercent:15,reportingInstallations:null,cohorts:[],limitations:[]}}));await page.route('**/api/pulse',r=>r.fulfill({json:pulse}));await page.goto(url);}
 test('GitHub downloads show as milestones and bars carry only usage',async()=>{
  const p=await browser.newPage();await p.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total:56,source:'github-release-zip-downloads'}}));await open(p,createDemoPulse(Date.now()));
- const count=p.locator('.live-status a');await count.waitFor();assert.equal(await count.innerText(),'50+ downloads on GitHub');assert.equal(await count.getAttribute('href'),'https://github.com/Relay-harness/miso/releases');
+ const count=p.locator('.live-status .download-count');await count.waitFor();assert.equal(await count.innerText(),'50+ downloads on GitHub');assert.equal(await count.getAttribute('href'),'https://github.com/Relay-harness/miso/releases');
  assert.equal((await p.locator('.claude .one-line').innerText()).trim(),'Typical 5-hour usage: 60% used');
  assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'60');assert.equal(await p.locator('.claude .quota-segment.is-filled').count(),24);
  assert.doesNotMatch(await p.locator('.quota-board').innerText(),/\blive\b|\bmembers?\b|at the limit|check-in \d|Refresh now/i);
  assert.match(await p.title(),/^Claude 60% used/);
  await p.unroute('**/api/downloads');await p.close();
- for(const [total,label] of [[31,'31 downloads on GitHub'],[100,'100+ downloads on GitHub'],[149,'100+ downloads on GitHub'],[1250,'1,250+ downloads on GitHub']]){
+ for(const [total,label] of [[31,'31 downloads on GitHub'],[64,'60+ downloads on GitHub'],[70,'70+ downloads on GitHub'],[89,'80+ downloads on GitHub'],[100,'100+ downloads on GitHub'],[1250,'1,200+ downloads on GitHub']]){
   const q=await browser.newPage();await q.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total,source:'github-release-zip-downloads'}}));await open(q,createDemoPulse(Date.now()));
-  await q.locator('.live-status a').waitFor();assert.equal(await q.locator('.live-status a').innerText(),label);await q.close();
+  await q.locator('.download-count').waitFor();assert.equal(await q.locator('.download-count').innerText(),label);await q.close();
  }
+});
+test('three real GitHub photos overlap beside the count; unsafe or missing photos are dropped',async()=>{
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAQH/7yMK/gAAAABJRU5ErkJggg==','base64');
+ const face=i=>({login:'u'+i,avatar:`https://avatars.githubusercontent.com/u/${i}?s=64&v=4`});
+ const p=await browser.newPage();await p.route('https://avatars.githubusercontent.com/**',r=>r.fulfill({contentType:'image/png',body:png}));
+ await p.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total:56,faces:[face(1),face(2),face(3),face(4),{login:'x',avatar:'https://evil.example/x.png'}],source:'github-release-zip-downloads'}}));await open(p,createDemoPulse(Date.now()));
+ const imgs=p.locator('.face-stack img');await imgs.first().waitFor();assert.equal(await imgs.count(),3);
+ assert.equal(await p.locator('.face-stack').getAttribute('href'),'https://github.com/Relay-harness/miso/stargazers');
+ const [a,b]=[await imgs.nth(0).boundingBox(),await imgs.nth(1).boundingBox()];assert.ok(b.x<a.x+a.width,'photos overlap');
+ assert.ok(await imgs.nth(0).evaluate(i=>getComputedStyle(i).borderRadius==='50%'));await p.close();
+ const q=await browser.newPage();await q.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total:56,faces:[{login:'x',avatar:'https://evil.example/x.png'}],source:'github-release-zip-downloads'}}));await open(q,createDemoPulse(Date.now()));
+ await q.locator('.download-count').waitFor();assert.equal(await q.locator('.face-stack').count(),0);await q.close();
 });
 test('no download count from GitHub means no number, and bars still work',async()=>{
  const p=await browser.newPage();await p.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total:null,source:'github-release-zip-downloads'}}));const d=createDemoPulse(Date.now());d.providers.codex=null;await open(p,d);
