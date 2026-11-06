@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased - Know when Miso is watching
+## 1.9.8 - Know when Miso is watching
 
 - Open at login by default, once, for installed copies, so Miso is running when Claude or Codex starts. Unchecking **Open at login** is respected.
 - The cat is awake while Claude or Codex runs and asleep otherwise. A chosen nap lasts until that session ends.
