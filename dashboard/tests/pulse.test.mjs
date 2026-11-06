@@ -14,23 +14,22 @@ test('member schema accepts the demo and rejects bad counts or numbers',()=>{
  const empty=structuredClone(d);empty.members=0;empty.joinedToday=0;empty.checkedInToday=0;empty.providers={claude:null,codex:null};assert.equal(isPulse(empty),true);
 });
 async function open(page,pulse){await page.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));await page.route('**/api/allowance',r=>r.fulfill({json:{schema:1,method:'paired-controlled-workload-v1',generatedAt:Date.now(),freshnessMinutes:10,minCohort:10,currentDays:1,baselineDays:6,materialChangePercent:15,reportingInstallations:null,cohorts:[],limitations:[]}}));await page.route('**/api/pulse',r=>r.fulfill({json:pulse}));await page.goto(url);}
-test('every member is counted, with daily wording and no live claims',async()=>{
- const p=await browser.newPage();await open(p,createDemoPulse(Date.now()));
- await p.locator('.claude .live-bit').waitFor();
- assert.match(await p.locator('.claude .one-line').innerText(),/Typical 5-hour usage: 60% used · 131 members/);
- assert.match(await p.locator('.claude .live-bit').innerText(),/23% of members at the limit/);
- assert.match(await p.locator('.live-status').innerText(),/142 Miso members · each Mac checks in once a day · 9 new today/);
- assert.equal(await p.locator('.join-count strong').innerText(),'142');assert.match(await p.locator('.join-count').innerText(),/Add yours and make it 143/);
- assert.doesNotMatch(await p.locator('.quota-board').innerText(),/\blive\b|right now|hitting the limit now|Refresh now|every 30s/i);
- assert.match(await p.title(),/^Claude 23% at limit/);await p.close();
+test('GitHub downloads show as milestones and bars carry only usage',async()=>{
+ const p=await browser.newPage();await p.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total:56,source:'github-release-zip-downloads'}}));await open(p,createDemoPulse(Date.now()));
+ const count=p.locator('.live-status a');await count.waitFor();assert.equal(await count.innerText(),'50+ downloads on GitHub');assert.equal(await count.getAttribute('href'),'https://github.com/Relay-harness/miso/releases');
+ assert.equal((await p.locator('.claude .one-line').innerText()).trim(),'Typical 5-hour usage: 60% used');
+ assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'60');assert.equal(await p.locator('.claude .quota-segment.is-filled').count(),24);
+ assert.doesNotMatch(await p.locator('.quota-board').innerText(),/\blive\b|\bmembers?\b|at the limit|check-in \d|Refresh now/i);
+ assert.match(await p.title(),/^Claude 60% used/);
+ await p.unroute('**/api/downloads');await p.close();
+ for(const [total,label] of [[31,'31 downloads on GitHub'],[100,'100+ downloads on GitHub'],[149,'100+ downloads on GitHub'],[1250,'1,250+ downloads on GitHub']]){
+  const q=await browser.newPage();await q.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total,source:'github-release-zip-downloads'}}));await open(q,createDemoPulse(Date.now()));
+  await q.locator('.live-status a').waitFor();assert.equal(await q.locator('.live-status a').innerText(),label);await q.close();
+ }
 });
-test('members stay counted when nobody checked in today',async()=>{
- const p=await browser.newPage();const d=createDemoPulse(Date.now());d.members=70;d.joinedToday=0;d.checkedInToday=0;
- d.providers.claude={members:70,medianUsed:40,atLimit:0,updatedAt:Date.now()-30*3600000};d.providers.codex=null;
- await open(p,d);await p.getByText('70 members',{exact:false}).first().waitFor();
- assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'40');assert.equal(await p.locator('.claude .quota-segment.is-filled').count(),16);
- assert.match(await p.locator('.claude .one-line').innerText(),/latest check-in 1d ago|latest check-in 30h ago/);
- assert.equal(await p.locator('.codex .gauge-number strong').innerText(),'-');await p.close();
+test('no download count from GitHub means no number, and bars still work',async()=>{
+ const p=await browser.newPage();await p.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total:null,source:'github-release-zip-downloads'}}));const d=createDemoPulse(Date.now());d.providers.codex=null;await open(p,d);
+ await p.locator('.claude .one-line b').waitFor();assert.equal(await p.locator('.live-status').count(),0);assert.equal(await p.locator('.codex .gauge-number strong').innerText(),'-');await p.close();
 });
 test('empty or unreachable data never shows numbers',async()=>{
  const p=await browser.newPage();const d=createDemoPulse(Date.now());d.members=0;d.joinedToday=0;d.checkedInToday=0;d.providers={claude:null,codex:null};await open(p,d);

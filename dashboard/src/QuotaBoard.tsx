@@ -12,6 +12,8 @@ const name=(p:'claude'|'codex')=>p==='claude'?'Claude':'Codex';
 const runway=(index:number)=>{const m=Math.round(300*index/100/5)*5;const h=Math.floor(m/60),r=m%60;return h&&r?`${h}h ${r}m`:h?`${h}h`:`${r}m`;};
 const delta=(c:AllowanceCohort)=>Math.round((c.index??100)-100);
 const range=(c:AllowanceCohort)=>{const [lo,hi]=c.interval!;const f=(n:number)=>n===0?'0':(n>0?'+':'−')+Math.abs(n);const a=lo-100,b=hi-100;return a===b?f(a)+'%':Math.abs(a)>Math.abs(b)?`${f(b)} to ${f(a)}%`:`${f(a)} to ${f(b)}%`;};
+// 56 downloads reads as 50+, 104 as 100+. Below the first milestone, show the exact count.
+const downloadLabel=(n:number)=>n<50?n.toLocaleString():`${(Math.floor(n/50)*50).toLocaleString()}+`;
 const INSTALL='brew install --cask relay-harness/tap/relay-cat';
 // Avoid the Vercel rewrite for browser reads; the collector permits this read-only origin.
 const API=['www.throttleindex.com','throttleindex.com'].includes(window.location.hostname)?'https://api.throttleindex.com':'';
@@ -46,7 +48,7 @@ export function QuotaBoard(){
   return()=>{active=false;request?.abort();window.clearInterval(t);window.removeEventListener('online',resume);document.removeEventListener('visibilitychange',resume);};
  },[demo,attempt]);
  const members=pulse&&pulse.generatedAt<=now+120000?pulse:null;
- useEffect(()=>{const c=members?.providers.claude;document.title=c?`Claude ${c.atLimit}% at limit · throttleindex`:'throttleindex · are the limits shrinking?';},[members]);
+ useEffect(()=>{const c=members?.providers.claude;document.title=c?`Claude ${c.medianUsed}% used · throttleindex`:'throttleindex · are the limits shrinking?';},[members]);
  useEffect(()=>{
   let active=true;
   async function load(){
@@ -60,11 +62,10 @@ export function QuotaBoard(){
  },[attempt,demo]);
  const stale=!!data&&(now-data.generatedAt>data.freshnessMinutes*60000||data.generatedAt>now+60000);
  const available=!!data&&!error&&!stale;
- const sources=demo?(available?data.reportingInstallations??0:0):(members?.members??0);
  return <section className="quota-board minimal-quota allowance-board clean" aria-label="Claude and Codex limits">
   {demo&&<aside className="demo-notice" aria-label="Demo data notice"><span>Demo · made-up numbers</span><a href={window.location.pathname}>Exit demo</a></aside>}
   <h1 className="headline">did they just nerf the limits? again!?</h1>
-  {!demo&&<div className="live-status" role="status"><span>{members?`${members.members.toLocaleString()} Miso ${members.members===1?'member':'members'} · each Mac checks in once a day${members.joinedToday?` · ${members.joinedToday} new today`:''}`:'Loading members…'}</span></div>}
+  {!demo&&downloads!==null&&<div className="live-status" role="status"><a href="https://github.com/Relay-harness/miso/releases" rel="noreferrer">{downloadLabel(downloads)} {downloads===1?'download':'downloads'} on GitHub</a></div>}
   {(pulseError||((error||stale)&&!members?.providers.claude&&!members?.providers.codex))&&<div className="collector-notice" role="status"><Info size={13}/><span>{stale?'Allowance evidence is stale.':'Can’t reach the data right now.'} <button onClick={()=>setAttempt(v=>v+1)}>Retry</button></span></div>}
   <div className="provider-stack">{(['claude','codex'] as const).map(provider=>{
    const kind='five_hour';
@@ -80,13 +81,12 @@ export function QuotaBoard(){
    const index=showingMembers?usage!.medianUsed:(allowanceReady?cohort!.index:null);
    const filled=index===null?0:Math.min(40,Math.round(index/2.5));
    const tone=!showingMembers&&allowanceReady?cohort!.status:'insufficient';
-   const who=(n:number)=>`${n.toLocaleString()} ${n===1?'member':'members'}`;
    return <article key={provider} className={`quota-gauge provider-row ${provider} ${kind} ${tone==='decreased'?'allowance-decreased':''}`} aria-label={`${provider==='claude'?'Claude':'OpenAI'} five-hour ${showingMembers?'usage':'allowance'}`}>
     <div className="provider-line"><h2>{provider==='claude'?<img className="provider-mark" src="/claude-ai-logo.png" width={22} height={22} alt="" aria-hidden="true"/>:<OpenAiLogo className="provider-mark" size={22} aria-hidden="true"/>}{provider==='claude'?'Claude':'OpenAI'}{!showingMembers&&allowanceReady&&delta(cohort!)!==0&&<span className={`provider-sub tone-${tone}`}>{`${delta(cohort!)>0?'+':'−'}${Math.abs(delta(cohort!))}% this week`}</span>}</h2><div className="gauge-number"><strong>{index===null?'-':index}</strong>{index!==null&&<span>%</span>}</div></div>
-    <div className="provider-reading"><div className={`pressure-track segmented-track ${ready?'':'no-readings'}`} role="img" title={showingMembers?`Typical five-hour usage across ${who(usage!.members)}, from each Mac's latest daily check-in`:allowanceReady&&cohort!.interval?`Likely ${range(cohort!)} · ${cohort!.contributors} ${plan(cohort!.plan)} users on ${model(cohort!.model)} · updated ${ago(cohort!.latestAt!)}`:undefined} aria-label={index===null?'No data yet':showingMembers?`${index}% typical five-hour usage across ${who(usage!.members)}.`:`${index}% of last week's 5-hour allowance. A full bar means no change.`}>
+    <div className="provider-reading"><div className={`pressure-track segmented-track ${ready?'':'no-readings'}`} role="img" title={showingMembers?'Typical five-hour usage':allowanceReady&&cohort!.interval?`Likely ${range(cohort!)} · ${cohort!.contributors} ${plan(cohort!.plan)} users on ${model(cohort!.model)} · updated ${ago(cohort!.latestAt!)}`:undefined} aria-label={index===null?'No data yet':showingMembers?`${index}% typical five-hour usage.`:`${index}% of last week's 5-hour allowance. A full bar means no change.`}>
      {Array.from({length:40},(_,i)=><i key={i} aria-hidden="true" className={`quota-segment ${i<filled?'is-filled':ready&&tone==='decreased'?'is-lost':''}`}/>)}
     </div></div>
-    <p className={`one-line tone-${tone}`}>{loading&&!data&&!showingMembers?'Checking…':showingMembers?<span>Typical 5-hour usage: <b>{index}% used</b> · {who(usage!.members)} · latest check-in {ago(usage!.updatedAt)}</span>:allowanceReady?<span>Your 5-hour window now lasts <b>~{runway(index!)}</b></span>:'Waiting for the first Miso check-in.'}{usage&&<span className="live-bit"><span>{usage.atLimit}% of members at the limit</span></span>}</p>
+    <p className={`one-line tone-${tone}`}>{loading&&!data&&!showingMembers?'Checking…':showingMembers?<span>Typical 5-hour usage: <b>{index}% used</b></span>:allowanceReady?<span>Your 5-hour window now lasts <b>~{runway(index!)}</b></span>:'Waiting for the first Miso check-in.'}</p>
     {groups.length>1&&<label className="evidence-group"><span className="sr-only">{provider==='claude'?'Claude':'OpenAI'} group</span><select aria-label={`${provider==='claude'?'Claude':'OpenAI'} evidence group`} value={cohort?key(cohort):''} onChange={event=>setSelection(previous=>({...previous,[provider]:event.target.value}))}>{!cohort&&<option value="" disabled>Select a group</option>}{groups.map(c=><option key={key(c)} value={key(c)}>{groupLabel(c)}</option>)}</select></label>}
    </article>;
   })}</div>
@@ -96,7 +96,7 @@ export function QuotaBoard(){
    <p className="miso-copy">Download Miso. It shows your session usage on your Mac and warns you before a limit runs out. It also powers this index, with zero prompt tracking.</p>
    <div className="miso-terminal"><span className="sleeping-miso" role="img" aria-label="Miso the cat, asleep on your terminal"/><InstallCommand/></div>
    <p className="miso-note">Apple Silicon, macOS 14+. Miso isn’t Apple-notarized yet: if macOS blocks the first launch, open System Settings → Privacy &amp; Security and click Open Anyway.</p>
-   <div className="miso-foot">{sources>0?<p className="join-count"><strong>{sources.toLocaleString()}</strong> {demo?(sources===1?'reporting installation':'reporting installations'):(sources===1?'Miso member':'Miso members')} counted. Add yours and make it {(sources+1).toLocaleString()}.</p>:<p className="join-count join-empty">{downloads?<><strong>{downloads.toLocaleString()}</strong> downloads so far. The bars fill as soon as the first Mac checks in.</>:'One Mac checking in is enough to start the bars.'}</p>}</div>
+   <div className="miso-foot"><p className="join-count join-empty">Install Miso and add your usage to the bars.</p></div>
   </section>
  </section>;
 }
