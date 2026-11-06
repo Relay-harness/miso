@@ -1,23 +1,26 @@
 import type {AllowanceCohort} from './allowance-data';
 
 // What a bar says: did the limit change? Usage is never a source here, because a busy day is not a smaller limit.
-export type Announcement={provider:'claude'|'codex';percent:number;date:string;until?:string;source:string;url:string};
+export type Announcement={provider:'claude'|'codex';percent:number;date:string;headline:string;detail:string;source:string;url:string};
 export type LimitChange=
  {state:'cut'|'extra';percent:number;filled:number;contributors:number|null;announcement:Announcement|null}|
  {state:'normal';percent:0;filled:40;contributors:number;announcement:null}|
  {state:'unclear'|'unknown';percent:null;filled:0;contributors:number|null;announcement:null};
 
-// Official changes that state a number, for example "doubling five-hour limits" is percent 100. Add one only from the
-// provider's own page, never from a forum post. Measured results always win over this list.
-export const ANNOUNCEMENTS:Announcement[]=[];
-const SHOWN_FOR=30*86400000;
+// The latest change each provider announced with a number, until Miso has its own measurements. Measured results always
+// win over this list. Update it by hand when a provider announces a change: the figure must trace back to the provider's
+// own statement, never a forum post or a complaint.
+export const ANNOUNCEMENTS:Announcement[]=[
+ {provider:'claude',percent:-17,date:'2026-09-14',headline:'weekly limit cut.',detail:'17% below the temporary boost, 25% above the old standard. 5-hour limit raised Sep 22, size not published.',source:'BleepingComputer',url:'https://www.bleepingcomputer.com/news/artificial-intelligence/anthropic-is-cutting-claude-codes-current-weekly-limits-by-17-percent/'},
+ {provider:'codex',percent:100,date:'2026-10-29',headline:'limits doubled on Pro plans.',detail:'A planned 50% cut was dropped. Plus unchanged.',source:'BleepingComputer',url:'https://www.bleepingcomputer.com/news/artificial-intelligence/openai-doubles-chatgpt-pro-usage-limits-after-backlash-over-planned-50-percent-cut/'},
+];
 const SEGMENTS=40;
 const remaining=(percent:number)=>Math.max(0,Math.min(SEGMENTS,Math.round((100-percent)/2.5)));
 
 function current(list:Announcement[],provider:Announcement['provider'],now:number){
  const live=list.filter(a=>{
-  const start=Date.parse(a.date),end=a.until?Date.parse(a.until):start+SHOWN_FOR;
-  return a.provider===provider&&Number.isFinite(start)&&Number.isFinite(end)&&start<=now&&now<=end;
+  const start=Date.parse(a.date);
+  return a.provider===provider&&Number.isFinite(start)&&start<=now;
  });
  return live.sort((a,b)=>Date.parse(b.date)-Date.parse(a.date))[0]??null;
 }

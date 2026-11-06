@@ -17,8 +17,8 @@ async function open(page,pulse){await page.route('https://hn.algolia.com/**',r=>
 test('GitHub downloads show as milestones and usage stays out of the bars',async()=>{
  const p=await browser.newPage();await p.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total:56,source:'github-release-zip-downloads'}}));await open(p,createDemoPulse(Date.now()));
  const count=p.locator('.live-status .download-count');await count.waitFor();assert.equal(await count.innerText(),'50+ downloads on GitHub');assert.equal(await count.getAttribute('href'),'https://github.com/Relay-harness/miso/releases');
- assert.equal(await p.locator('.claude .usage-note').innerText(),'Typical 5-hour use: 60%');assert.match(await p.locator('.claude .one-line').innerText(),/Not measured yet\./);
- assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'-');assert.equal(await p.locator('.quota-segment.is-filled').count(),0);assert.match(await p.locator('.codex .one-line').innerText(),/can’t calibrate Codex yet/);
+ assert.equal(await p.locator('.claude .usage-note').innerText(),'Typical 5-hour use: 60%');assert.match(await p.locator('.claude .one-line').innerText(),/^Last announced: weekly limit cut\. .*Sep 14, 2026 · BleepingComputer$/);assert.match(await p.locator('.claude .measure-note').innerText(),/Not measured by Miso yet/);
+ assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'−17%');assert.equal(await p.locator('.claude .quota-segment.is-filled').count(),33);assert.equal(await p.locator('.claude .quota-segment.is-lost').count(),7);assert.equal(await p.locator('.codex .gauge-number strong').innerText(),'+100%');assert.equal(await p.locator('.codex .quota-segment.is-filled').count(),40);assert.match(await p.locator('.codex .measure-note').innerText(),/can’t measure Codex yet/);assert.match(await p.locator('.codex .one-line a').getAttribute('href'),/^https:\/\/www\.bleepingcomputer\.com\//);
  assert.doesNotMatch(await p.locator('.quota-board').innerText(),/\blive\b|\bmembers?\b|at the limit|check-in \d|Refresh now/i);
  assert.doesNotMatch(await p.title(),/%/);
  await p.unroute('**/api/downloads');await p.close();
@@ -39,11 +39,11 @@ test('three GitHub photos overlap beside the count and link to the stargazers',a
 });
 test('no download count from GitHub means no number, and bars still work',async()=>{
  const p=await browser.newPage();await p.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total:null,source:'github-release-zip-downloads'}}));const d=createDemoPulse(Date.now());d.providers.codex=null;await open(p,d);
- await p.locator('.claude .one-line b').waitFor();assert.equal(await p.locator('.live-status').count(),0);assert.equal(await p.locator('.codex .gauge-number strong').innerText(),'-');await p.close();
+ await p.locator('.claude .one-line b').waitFor();assert.equal(await p.locator('.live-status').count(),0);assert.equal(await p.locator('.codex .usage-note').count(),0);await p.close();
 });
 test('empty or unreachable data never shows numbers',async()=>{
  const p=await browser.newPage();const d=createDemoPulse(Date.now());d.members=0;d.joinedToday=0;d.checkedInToday=0;d.providers={claude:null,codex:null};await open(p,d);
- await p.locator('.claude .one-line').getByText('Not measured yet.').waitFor();assert.equal(await p.locator('.usage-note').count(),0);await p.waitForTimeout(300);assert.equal(await p.locator('.live-bit').count(),0);assert.doesNotMatch(await p.title(),/%/);
+ await p.locator('.claude .one-line').getByText('Last announced',{exact:false}).waitFor();assert.equal(await p.locator('.usage-note').count(),0);await p.waitForTimeout(300);assert.equal(await p.locator('.live-bit').count(),0);assert.doesNotMatch(await p.title(),/%/);
  await p.unroute('**/api/pulse');await p.route('**/api/pulse',r=>r.fulfill({status:503,body:'unavailable'}));await p.evaluate(()=>window.dispatchEvent(new Event('online')));
  await p.getByText('Can’t reach the data right now.',{exact:false}).waitFor();await p.close();
 });
@@ -54,7 +54,7 @@ test('reports are counted under the bar, link out, and never fill it',async()=>{
  const line=p.locator('.claude .reports-note');await line.waitFor();assert.equal(await line.innerText(),'Unverified reports on Hacker News: 1 this week, 1 last week · read one');
  assert.equal(await line.getByRole('link',{name:'read one'}).getAttribute('href'),'https://news.ycombinator.com/item?id=1');
  assert.equal(await p.locator('.codex .reports-note').innerText(),'No limit reports on Hacker News in the past 2 weeks.');
- assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'-');assert.equal(await p.locator('.quota-segment.is-filled').count(),0);await p.close();
+ assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'−17%');assert.equal(await p.locator('.claude .quota-segment.is-filled').count(),33);await p.close();
  const q=await browser.newPage();await q.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total:null,source:'x'}}));await q.route('https://hn.algolia.com/**',r=>r.fulfill({status:503,body:'down'}));await q.route('**/api/pulse',r=>r.fulfill({json:createDemoPulse(Date.now())}));await q.goto(url);await q.locator('.claude .usage-note').waitFor();await q.waitForTimeout(400);assert.equal(await q.locator('.reports-note').count(),0);await q.close();
 });
 test('install command can be copied',async()=>{
