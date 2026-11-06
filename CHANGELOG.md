@@ -2,9 +2,7 @@
 
 ## Unreleased
 
-- Website: until Miso has its own measurements, each bar shows the provider's last announced limit change with its date and source, labelled as not measured by Miso.
-
-- Website: each bar also counts unverified limit reports from Hacker News this week and last week, with a link to one. Reports never set the bar or its percentage.
+- Website: until Miso has its own measurements, each bar shows the provider's last announced limit change with its date and source. One short line sits under each bar, and typical usage, Hacker News report counts and fuller details appear on hover.
 
 ## Unreleased
 

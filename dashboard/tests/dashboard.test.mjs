@@ -10,13 +10,13 @@ function aggregate({ready=true,stale=false,status='decreased',index=50}={}){
 }
 async function setup(page,options={}){await page.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));await page.route('**/api/allowance',r=>r.fulfill({json:aggregate(options)}));await page.goto(url);}
 test('allowance baseline, windows, uncertainty and bar scale do not display quota consumption',async()=>{
- const p=await browser.newPage({viewport:{width:1440,height:1000}});await setup(p);await p.locator('.claude .quota-segment.is-filled').first().waitFor();assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'−50%');assert.equal(await p.locator('.claude .quota-segment.is-filled').count(),20);assert.equal(await p.locator('.claude .quota-segment.is-lost').count(),20);assert.equal((await p.locator('.claude .one-line').innerText()).trim(),'Limit cut. 50% lower than the past week · measured on 20 Macs');
+ const p=await browser.newPage({viewport:{width:1440,height:1000}});await setup(p);await p.locator('.claude .quota-segment.is-filled').first().waitFor();assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'−50%');assert.equal(await p.locator('.claude .quota-segment.is-filled').count(),20);assert.equal(await p.locator('.claude .quota-segment.is-lost').count(),20);assert.equal((await p.locator('.claude .one-line').innerText()).trim(),'Limit cut · vs past week · 20 Macs');
  assert.match(await p.locator('.claude .pressure-track').getAttribute('aria-label'),/Limit cut by 50%/);assert.match(await p.locator('.claude .pressure-track').getAttribute('title'),/Likely −40 to −60%/);assert.match(await p.locator('.claude .pressure-track').getAttribute('title'),/20 Pro users on Sonnet 4\.5/);
  assert.equal(await p.getByText(/quota used · all plans|Near limit|LIMIT REACHED/).count(),0);
  assert.equal(await p.getByText('Why this exists').count(),0);await p.close();
 });
 test('insufficient and stale evidence falls back to the last announcement, never usage or sample counts',async()=>{
- const p=await browser.newPage();await setup(p,{ready:false});await p.locator('.claude .one-line').getByText('Last announced',{exact:false}).waitFor();assert.deepEqual(await p.locator('.gauge-number strong').allTextContents(),['−17%','+100%']);assert.equal(await p.locator('.checkin-row').count(),0);
+ const p=await browser.newPage();await setup(p,{ready:false});await p.locator('.claude .one-line').getByText('Announced',{exact:false}).waitFor();assert.deepEqual(await p.locator('.gauge-number strong').allTextContents(),['−17%','+100%']);assert.equal(await p.locator('.checkin-row').count(),0);
  await p.unroute('**/api/allowance');await p.route('**/api/allowance',r=>r.fulfill({json:aggregate({stale:true})}));await p.reload();await p.getByText('Allowance evidence is stale.',{exact:false}).waitFor();assert.equal(await p.locator('.gauge-number strong').first().innerText(),'−17%');await p.close();
 });
 test('usage-only or malformed API responses cannot become allowance evidence',async()=>{

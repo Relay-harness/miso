@@ -11,8 +11,8 @@ export type LimitChange=
 // win over this list. Update it by hand when a provider announces a change: the figure must trace back to the provider's
 // own statement, never a forum post or a complaint.
 export const ANNOUNCEMENTS:Announcement[]=[
- {provider:'claude',percent:-17,date:'2026-09-14',headline:'weekly limit cut.',detail:'17% below the temporary boost, 25% above the old standard. 5-hour limit raised Sep 22, size not published.',source:'BleepingComputer',url:'https://www.bleepingcomputer.com/news/artificial-intelligence/anthropic-is-cutting-claude-codes-current-weekly-limits-by-17-percent/'},
- {provider:'codex',percent:100,date:'2026-10-29',headline:'limits doubled on Pro plans.',detail:'A planned 50% cut was dropped. Plus unchanged.',source:'BleepingComputer',url:'https://www.bleepingcomputer.com/news/artificial-intelligence/openai-doubles-chatgpt-pro-usage-limits-after-backlash-over-planned-50-percent-cut/'},
+ {provider:'claude',percent:-17,date:'2026-09-14',headline:'Weekly limit, after boost ended',detail:'17% below the temporary boost, 25% above the old standard. 5-hour limit raised Sep 22, size not published. Not measured by Miso.',source:'BleepingComputer',url:'https://www.bleepingcomputer.com/news/artificial-intelligence/anthropic-is-cutting-claude-codes-current-weekly-limits-by-17-percent/'},
+ {provider:'codex',percent:100,date:'2026-10-29',headline:'Pro plans doubled',detail:'A planned 50% cut was dropped. Plus unchanged. Not measured by Miso.',source:'BleepingComputer',url:'https://www.bleepingcomputer.com/news/artificial-intelligence/openai-doubles-chatgpt-pro-usage-limits-after-backlash-over-planned-50-percent-cut/'},
 ];
 const SEGMENTS=40;
 const remaining=(percent:number)=>Math.max(0,Math.min(SEGMENTS,Math.round((100-percent)/2.5)));

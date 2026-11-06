@@ -30,10 +30,10 @@ test('deduplicates and ranks concrete before/after evidence ahead of a newer bar
  assert.equal(rankLimitPosts([strong],now+REPORT_MAX_AGE).length,0);
  const url=new URL(limitSearchURL('Claude limit',now));assert.equal(url.searchParams.get('hitsPerPage'),'60');assert.ok(url.searchParams.get('numericFilters').startsWith('created_at_i>'));
 });
-test('report counts split by provider and week, and only this week can be linked',()=>{
+test('report counts split by provider and week',()=>{
  const DAY=86400000,post=(id,title,ago)=>parseLimitPost(hit(title,{objectID:id,created_at_i:(now-ago*DAY)/1000}),now);
  const posts=[post('1','Claude Pro session limit reduced from 80 to 20 prompts',1),post('2','I hit Claude Pro session limit after 20 prompts',3),post('3','Claude Pro weekly quota exhausted after 12 tasks',9),post('4','Claude Pro session limit cut from 80 to 20 prompts',20),post('5','Codex Plus weekly quota exhausted after 12 tasks',2)];
- const c=reportCounts(posts,'Claude',now);assert.deepEqual([c.thisWeek,c.lastWeek,c.top.id],[2,1,'1']);
- const o=reportCounts(posts,'OpenAI',now);assert.deepEqual([o.thisWeek,o.lastWeek,o.top.id],[1,0,'5']);
- const old=reportCounts([posts[2]],'Claude',now);assert.deepEqual([old.thisWeek,old.lastWeek,old.top],[0,1,null]);
+ const c=reportCounts(posts,'Claude',now);assert.deepEqual([c.thisWeek,c.lastWeek],[2,1]);
+ const o=reportCounts(posts,'OpenAI',now);assert.deepEqual([o.thisWeek,o.lastWeek],[1,0]);
+ const old=reportCounts([posts[2]],'Claude',now);assert.deepEqual([old.thisWeek,old.lastWeek],[0,1]);
 });

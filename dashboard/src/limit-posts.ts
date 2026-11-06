@@ -66,12 +66,11 @@ export function limitSearchURL(query:string,now=Date.now()):string {
  return 'https://hn.algolia.com/api/v1/search_by_date?'+params;
 }
 const WEEK=7*86400000;
-export type ReportCounts={thisWeek:number;lastWeek:number;top:LimitPost|null};
+export type ReportCounts={thisWeek:number;lastWeek:number};
 // Counts posts that pass parseLimitPost. They are unverified reports and never become a limit-change figure.
 export function reportCounts(posts:LimitPost[],provider:'Claude'|'OpenAI',now=Date.now()):ReportCounts {
  const mine=rankLimitPosts(posts.filter(p=>p.providers.includes(provider)),now);
- const recent=mine.filter(p=>p.created>=now-WEEK);
- return {thisWeek:recent.length,lastWeek:mine.filter(p=>p.created<now-WEEK&&p.created>=now-2*WEEK).length,top:recent[0]??null};
+ return {thisWeek:mine.filter(p=>p.created>=now-WEEK).length,lastWeek:mine.filter(p=>p.created<now-WEEK&&p.created>=now-2*WEEK).length};
 }
 export type LimitPostResult={posts:LimitPost[];failures:number;searches:number};
 let recentLoad:{at:number;result:Promise<LimitPostResult>}|null=null;
