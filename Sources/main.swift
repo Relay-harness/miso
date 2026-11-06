@@ -44,7 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     private var palette: Int { settings.integer(forKey: "palette") }
     private var animate: Bool { settings.object(forKey: "animate") as? Bool ?? true }
     private var sound: Bool { settings.object(forKey: "sound") as? Bool ?? true }
-    private var sleeping: Bool { catRest.isSleeping(at: Date()) }
+    private var sleeping: Bool { catRest.isSleeping(at: Date(), providerActive: quotas.providerActive) }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -68,8 +68,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         sharing.onChange = { [weak self] in self?.syncConnectionStatus() }
         syncConnectionStatus()
         quotas.onFreshReading = { [weak self] reading in self?.sharing.submit(reading) }
-        if !CommandLine.arguments.contains("--verify-quota-menu") { enableSharingByDefault() }
-        if !CommandLine.arguments.contains("--verify-quota-menu") { activity.refreshIfDue(interval: 0) { [weak self] active in self?.quotas.setActiveProviders(active) } }
+        if !CommandLine.arguments.contains("--verify-quota-menu") { enableSharingByDefault(); enableOpenAtLoginByDefault() }
+        if !CommandLine.arguments.contains("--verify-quota-menu") { activity.refreshIfDue(interval: 0) { [weak self] active in self?.providersChanged(active) } }
         if !CommandLine.arguments.contains("--verify-quota-menu") { MisoUpdateChecker.check { [weak self] result in self?.handleUpdateResult(result, manual: false) } }
         quotas.refreshIfDue()
         update()
@@ -85,15 +85,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
 
     private func syncConnectionStatus() {
-        let provider = dashboard.selected
-        if !sharing.enabled { dashboard.reportingStatus = "Website sharing off · local tracking only" }
+        dashboard.watching = quotas.enabled && quotas.providerActive
+        dashboard.activityStatus = MisoStatus.text(active: quotas.activeProviders, quotasEnabled: quotas.enabled)
+        // Check-ins are daily and don't depend on a provider running, so this line reports the last one.
+        let problem = [dashboard.selected, .claude, .codex].compactMap { sharing.providerStatus[$0] }.first { !$0.hasPrefix("Accepted") }
+        let last = [QuotaProvider.claude, .codex].compactMap { sharing.lastAccepted($0) }.max()
+        if !sharing.enabled { dashboard.reportingStatus = "Website sharing off" }
         else if !quotas.enabled { dashboard.reportingStatus = "Website sharing paused · quota access off" }
-        else if !quotas.activeProviders.contains(provider) { dashboard.reportingStatus = "Website sharing paused · \(provider.name) not running" }
-        else {
-            let detail = sharing.providerStatus[provider] ?? "Waiting for a fresh quota reading"
-            let stamp = sharing.lastAccepted(provider).map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) }
-            dashboard.reportingStatus = "Website: " + detail + (stamp.map { " · last accepted " + $0 } ?? " · no acknowledgement yet")
-        }
+        else if let problem, last == nil || sharing.dailyReportDue() { dashboard.reportingStatus = "Website: " + problem }
+        else if let last { dashboard.reportingStatus = "Website: shared " + DateFormatter.localizedString(from: last, dateStyle: .none, timeStyle: .short) + " · next check-in within a day" }
+        else { dashboard.reportingStatus = "Website: first check-in pending" }
+    }
+    private func providersChanged(_ active: Set<QuotaProvider>) {
+        if active.isEmpty { catRest.providersStopped() }
+        quotas.setActiveProviders(active); update()
+    }
+    /// Miso can only notice Claude or Codex while it is open, so it opens at login. Applied once; the checkbox decides after that.
+    private func enableOpenAtLoginByDefault() {
+        guard LoginItemPolicy.shouldRegister(alreadyApplied: settings.bool(forKey: "openAtLoginDefaultApplied"), bundlePath: Bundle.main.bundlePath, home: NSHomeDirectory()) else { return }
+        settings.set(true, forKey: "openAtLoginDefaultApplied")
+        if SMAppService.mainApp.status != .enabled { try? SMAppService.mainApp.register() }
     }
     @objc private func willSleep() { quotas.pauseForSleep(); sharing.pauseUploads() }
     @objc private func didWake() { activity.reset(); tick() }
@@ -112,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             if sound { NSSound(named: NSSound.Name("Glass"))?.play() }
         }
         frame = (frame + 1) % 8
-        activity.refreshIfDue { [weak self] active in self?.quotas.setActiveProviders(active) }
+        activity.refreshIfDue { [weak self] active in self?.providersChanged(active) }
         quotas.refreshIfDue()
         // An open popover is someone looking at the numbers: keep them fresh even between coding sessions.
         if popover.isShown { quotas.refreshVisibleIfDue() }
@@ -134,8 +145,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
         let focusText = clock.isRunning ? " " + (clock.isPaused ? "Ⅱ " : "") + clock.label(at: now) : ""
         status.button?.title = focusText + quotas.barText(at: now)
-        let mood = asleep ? "sleeping" : (!activity.active && quotas.enabled ? "waiting for Claude or Codex" : "keeping you company")
-        let description = "Miso is \(mood)" + (clock.isRunning ? " · \(clock.phase == .focus ? "Focus" : "Break") \(clock.label(at: now))" : "")
+        let description = MisoStatus.text(active: quotas.activeProviders, quotasEnabled: quotas.enabled) + (asleep && quotas.providerActive ? " · napping" : "") + (clock.isRunning ? " · \(clock.phase == .focus ? "Focus" : "Break") \(clock.label(at: now))" : "")
         status.button?.toolTip = now < messageUntil ? message : description
         status.button?.setAccessibilityLabel(description + (quotas.enabled ? " · " + quotas.displayedProvider.name + " " + quotas.headline(quotas.displayedProvider) : ""))
     }
@@ -390,6 +400,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         menu.performActionForItem(at: 0)
         self.verifyCondition(sleeping && !catRest.manuallyAwake, "Manual nap still works")
         menuDidClose(menu)
+        // The cat and status line show whether Claude or Codex is being watched.
+        self.verifyCondition(sleeping && dashboard.activityStatus == "Miso is running · quota access off", "Idle status is plain")
+        providersChanged([.claude])
+        syncConnectionStatus()
+        self.verifyCondition(catRest.manuallyNapped && sleeping, "A nap chosen by the user holds during the session")
+        providersChanged([])
+        providersChanged([.claude])
+        self.verifyCondition(!sleeping, "The next Claude session wakes Miso")
+        providersChanged([])
+        self.verifyCondition(sleeping, "Miso sleeps when Claude and Codex stop")
         self.verifyCondition(dashboard.visibleTabs == [.codex, .claude])
         self.verifyCondition(dashboard.visibleTabs.map(DashboardState.label) == ["OpenAI", "Claude"])
         self.verifyCondition(ProviderSelection.optional.map(DashboardState.label) == ["Gemini", "Grok"])

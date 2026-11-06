@@ -7,7 +7,9 @@ final class DashboardState: ObservableObject {
     var visibleTabs: [QuotaProvider] { store.visibleProviders }
     let store: QuotaStore
     @Published var selected: QuotaProvider = .claude
-    @Published var reportingStatus = "Website sharing off · local tracking only"
+    @Published var reportingStatus = "Website sharing off"
+    @Published var activityStatus = "Miso is running"
+    @Published var watching = false
     @Published var revision = 0
     @Published var now = Date()
     @Published var panelSize = DashboardLayout.preferredSize
@@ -141,9 +143,13 @@ struct RelayCatDashboard: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
             if !model.preview {
-                Text(model.reportingStatus).font(.system(size: 10)).foregroundStyle(muted)
-                    .lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 4).help(model.reportingStatus).accessibilityLabel(model.reportingStatus)
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Circle().fill(model.watching ? Color.green : muted).frame(width: 6, height: 6).accessibilityHidden(true)
+                    Text(model.activityStatus + "\n" + model.reportingStatus).font(.system(size: 10)).foregroundStyle(muted)
+                        .lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.vertical, 4).help(model.activityStatus + "\n" + model.reportingStatus)
+                .accessibilityElement(children: .combine)
             }
             footer
         }

@@ -22,7 +22,7 @@ The ordinary random reporting key is created owner-only in app support. Read/cor
 
 ## Install/update limits
 
-**Open at login** is registered only on explicit user action. The update notice copies a Homebrew command or opens release information; it is not an automatic installer. Update-check failures must not say “up to date.” Keep one installed app copy.
+**Open at login** is registered once at first launch of an installed copy; after that the checkbox is the user's choice. The update notice copies a Homebrew command or opens release information; it is not an automatic installer. Update-check failures must not say “up to date.” Keep one installed app copy.
 
 Developer ID signing/notarization is blocked until a valid Apple signing identity is supplied. The build remains ad-hoc signed. Provider authentication and optional browser/login-item approvals cannot be bypassed. A maintained signed automatic updater and clean-Mac permission validation remain separate release work.
 

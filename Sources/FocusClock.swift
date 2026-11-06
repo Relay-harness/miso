@@ -54,15 +54,40 @@ struct CatRestState {
     static let cooldown: TimeInterval = 2
     private(set) var isInspecting = false
     private(set) var manuallyAwake = false
+    private(set) var manuallyNapped = false
     private var awakeUntil: Date?
     mutating func opened() { isInspecting = true; awakeUntil = nil }
     mutating func closed(at now: Date) {
         guard isInspecting else { return }
         isInspecting = false; awakeUntil = now.addingTimeInterval(Self.cooldown)
     }
-    mutating func wakeManually() { manuallyAwake = true; awakeUntil = nil }
-    mutating func napManually() { manuallyAwake = false; awakeUntil = nil }
-    func isSleeping(at now: Date) -> Bool {
-        !isInspecting && !manuallyAwake && !(awakeUntil.map { now < $0 } ?? false)
+    mutating func wakeManually() { manuallyAwake = true; manuallyNapped = false; awakeUntil = nil }
+    mutating func napManually() { manuallyAwake = false; manuallyNapped = true; awakeUntil = nil }
+    /// A nap lasts for the current Claude or Codex session; the next session wakes Miso again.
+    mutating func providersStopped() { manuallyNapped = false }
+    /// Miso is awake while Claude or Codex runs, so the cat itself shows whether it is tracking.
+    func isSleeping(at now: Date, providerActive: Bool = false) -> Bool {
+        !isInspecting && !manuallyAwake && !(awakeUntil.map { now < $0 } ?? false) && !(providerActive && !manuallyNapped)
+    }
+}
+
+enum MisoStatus {
+    /// Plain words for what Miso is doing right now.
+    static func text(active: Set<QuotaProvider>, quotasEnabled: Bool) -> String {
+        guard quotasEnabled else { return "Miso is running · quota access off" }
+        switch (active.contains(.claude), active.contains(.codex)) {
+        case (true, true): return "Miso is running · watching Claude and Codex"
+        case (true, false): return "Miso is running · watching Claude"
+        case (false, true): return "Miso is running · watching Codex"
+        case (false, false): return "Miso is running · waiting for Claude or Codex"
+        }
+    }
+}
+
+enum LoginItemPolicy {
+    /// Register once, and only from an installed copy: never from a build folder or test copy.
+    /// After that the Open at login checkbox is the user's choice and is never overridden.
+    static func shouldRegister(alreadyApplied: Bool, bundlePath: String, home: String) -> Bool {
+        !alreadyApplied && (bundlePath.hasPrefix("/Applications/") || bundlePath.hasPrefix(home + "/Applications/"))
     }
 }

@@ -263,6 +263,13 @@ catRest.opened()
 check(!catRest.isSleeping(at: t), "checking usage temporarily wakes an explicitly napping cat")
 catRest.closed(at: t)
 check(catRest.isSleeping(at: t.addingTimeInterval(3)), "temporary wake returns the manually napping cat to sleep")
+var running = CatRestState()
+check(running.isSleeping(at: t) && !running.isSleeping(at: t, providerActive: true), "Miso is awake while Claude or Codex runs and asleep otherwise")
+running.napManually(); check(running.isSleeping(at: t, providerActive: true), "a chosen nap holds during the session")
+running.providersStopped(); check(!running.isSleeping(at: t, providerActive: true), "the next session wakes Miso after a nap")
+check(MisoStatus.text(active: [.claude, .codex], quotasEnabled: true) == "Miso is running · watching Claude and Codex" && MisoStatus.text(active: [.codex], quotasEnabled: true) == "Miso is running · watching Codex" && MisoStatus.text(active: [], quotasEnabled: true) == "Miso is running · waiting for Claude or Codex" && MisoStatus.text(active: [.claude], quotasEnabled: false) == "Miso is running · quota access off", "status says plainly what Miso is watching")
+check(LoginItemPolicy.shouldRegister(alreadyApplied: false, bundlePath: "/Applications/Miso.app", home: "/Volumes/h") && LoginItemPolicy.shouldRegister(alreadyApplied: false, bundlePath: "/Volumes/h/Applications/Miso.app", home: "/Volumes/h"), "installed copies open at login by default")
+check(!LoginItemPolicy.shouldRegister(alreadyApplied: true, bundlePath: "/Applications/Miso.app", home: "/Volumes/h") && !LoginItemPolicy.shouldRegister(alreadyApplied: false, bundlePath: "/Volumes/h/miso/build/Miso.app", home: "/Volumes/h"), "the login default applies once and never to build or test copies")
 print("\(checks) rest/layout core checks passed")
 
 func displayWindow(_ used: Double) -> QuotaWindow { QuotaWindow(title: "Fixture", used: used, resetsAt: qnow.addingTimeInterval(3600)) }

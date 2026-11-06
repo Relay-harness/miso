@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased - Know when Miso is watching
+
+- Open at login by default, once, for installed copies, so Miso is running when Claude or Codex starts. Unchecking **Open at login** is respected.
+- The cat is awake while Claude or Codex runs and asleep otherwise. A chosen nap lasts until that session ends.
+- The popover shows a green or grey dot with "Miso is running · watching Claude" or "waiting for Claude or Codex", plus the last website check-in. It no longer says sharing is paused when a provider isn't running.
+
 ## 1.9.7 - Daily check-ins and member counts
 
 - Report once right after install, then at most once every 24 hours, even when Claude Code or Codex isn't open. No more live reporting.
