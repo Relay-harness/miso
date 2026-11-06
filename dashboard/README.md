@@ -1,6 +1,6 @@
 # Miso allowance-change dashboard
 
-**Purpose:** experimental changes in effective subscription allowance, not percentage of quota used. The visible bars read `/api/allowance`: 100% is the historical baseline, 50% means half the estimated baseline allowance, and 150% means one and a half times it. Claude/Codex, five-hour/weekly, plan/model/context groups stay separate. Estimates require matched historical workload evidence and uncertainty bounds.
+**Purpose:** experimental changes in effective subscription allowance, not percentage of quota used. The visible bars read `/api/allowance` and show one of: a cut such as -30%, Normal, extra such as +25%, Unclear, or Not measured yet. The comparison is against the past week. Typical usage is a small line of text and never fills a bar. Claude/Codex, five-hour/weekly, plan/model/context groups stay separate. Estimates require matched historical workload evidence and uncertainty bounds.
 
 **Collection:** the updated native app offers optional **Data permissions → Run allowance calibration…** sessions for Claude Sonnet 4.5. These run 6 or 12 public fixed tasks, consume subscription quota, require exclusive-account confirmation before and after work, and upload only validated numeric intervals. Nothing runs automatically. Ordinary quota uploads/daily totals are still not evidence, and no native Codex adapter is supplied. Small sessions may have insufficient movement and send nothing. Real-provider validation is still required; live estimates need historical data and enough matched installations.
 
@@ -33,7 +33,7 @@ Read [the algorithm, protocol, tests, privacy and remaining collection work](../
 
 ## Interface
 
-The left side contains the GitHub connection link, five-hour/weekly switch, segmented allowance bars with a 100% baseline marker, a concise evidence group/uncertainty line, and matched installation count. There is no Miso navbar. Theme follows the system. Unsupported, small or stale evidence never becomes a numeric estimate. More than one supported plan/model/context group gets an explicit selector; unavailable selections do not silently become another plan.
+The left side contains the GitHub connection link, five-hour/weekly switch, segmented limit-change bars, a concise evidence group/uncertainty line, and matched installation count. There is no Miso navbar. Theme follows the system. Unsupported, small or stale evidence never becomes a numeric estimate. More than one supported plan/model/context group gets an explicit selector; unavailable selections do not silently become another plan.
 
 The right-hand internet feed remains secondary context and is not part of the estimator. It queries public HN/Algolia stories. Those browser requests expose the visitor's IP and search terms to Algolia, not native quota data. X/Reddit remain search links, not ingested streams.
 

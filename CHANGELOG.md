@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Website: each bar now shows whether the limit changed: a cut such as -30%, Normal, extra such as +25%, Unclear, or Not measured yet. Figures come only from Miso's calibration or a provider's own announcement. Typical usage moves to a small line of text under the bar.
+
 ## 1.9.8 - Know when Miso is watching
 
 - Open at login by default, once, for installed copies, so Miso is running when Claude or Codex starts. Unchecking **Open at login** is respected.

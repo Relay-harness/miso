@@ -72,6 +72,9 @@ main.sketch-layout{max-width:var(--wrap);margin:0 auto;padding:var(--s-7) var(--
 .gauge-number{display:flex;align-items:baseline;gap:2px;flex-shrink:0}
 .gauge-number>strong{font:500 var(--t-figure)/.85 var(--sans);letter-spacing:-.05em;font-variant-numeric:tabular-nums}
 .gauge-number>span{font:500 var(--t-18)/1 var(--sans);color:var(--muted)}
+.gauge-number.tone-decreased>strong{color:var(--accent)}
+.gauge-number.tone-increased>strong{color:var(--calm)}
+.gauge-number.is-word>strong{font-size:var(--t-22);line-height:1.2;letter-spacing:-.02em}
 
 .provider-reading{margin-top:var(--s-4)}
 .segmented-track{display:grid;grid-template-columns:repeat(40,1fr);gap:4px;height:56px}
@@ -84,6 +87,9 @@ main.sketch-layout{max-width:var(--wrap);margin:0 auto;padding:var(--s-7) var(--
 .one-line{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:var(--s-2) var(--s-5);margin-top:var(--s-3);font-size:var(--t-16);color:var(--muted)}
 .one-line b{color:var(--text)}
 .one-line.tone-decreased b{color:var(--accent)}
+.one-line.tone-increased b{color:var(--calm)}
+.one-line a{color:var(--text);text-decoration:underline;text-underline-offset:3px}
+.usage-note{margin-top:var(--s-1);font-size:var(--t-14);color:var(--muted)}
 .live-bit{display:inline-flex;align-items:center;gap:var(--s-2);font:var(--t-14)/1.4 var(--mono)}
 .live-bit em{font-style:normal}.live-bit .worse{color:var(--accent)}.live-bit .better{color:var(--calm)}
 .live-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:live 2s infinite}

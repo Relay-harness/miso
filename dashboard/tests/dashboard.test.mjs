@@ -10,15 +10,13 @@ function aggregate({ready=true,stale=false,status='decreased',index=50}={}){
 }
 async function setup(page,options={}){await page.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));await page.route('**/api/allowance',r=>r.fulfill({json:aggregate(options)}));await page.goto(url);}
 test('allowance baseline, windows, uncertainty and bar scale do not display quota consumption',async()=>{
- const p=await browser.newPage({viewport:{width:1440,height:1000}});await setup(p);await p.locator('.claude .quota-segment.is-filled').first().waitFor();assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'50');assert.equal(await p.locator('.claude .quota-segment.is-filled').count(),20);assert.equal(await p.locator('.claude .provider-sub').innerText(),'−50% this week');
-
-
- assert.ok(await p.locator('.claude .one-line').getByText('~2h 30m',{exact:true}).isVisible());assert.match(await p.locator('.claude .pressure-track').getAttribute('title'),/Likely −40 to −60%/);assert.match(await p.locator('.claude .pressure-track').getAttribute('title'),/20 Pro users on Sonnet 4\.5/);
+ const p=await browser.newPage({viewport:{width:1440,height:1000}});await setup(p);await p.locator('.claude .quota-segment.is-filled').first().waitFor();assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'−50%');assert.equal(await p.locator('.claude .quota-segment.is-filled').count(),20);assert.equal(await p.locator('.claude .quota-segment.is-lost').count(),20);assert.equal((await p.locator('.claude .one-line').innerText()).trim(),'Limit cut. 50% lower than the past week · measured on 20 Macs');
+ assert.match(await p.locator('.claude .pressure-track').getAttribute('aria-label'),/Limit cut by 50%/);assert.match(await p.locator('.claude .pressure-track').getAttribute('title'),/Likely −40 to −60%/);assert.match(await p.locator('.claude .pressure-track').getAttribute('title'),/20 Pro users on Sonnet 4\.5/);
  assert.equal(await p.getByText(/quota used · all plans|Near limit|LIMIT REACHED/).count(),0);
  assert.equal(await p.getByText('Why this exists').count(),0);await p.close();
 });
 test('insufficient and stale evidence never falls back to usage percentages or sample counts',async()=>{
- const p=await browser.newPage();await setup(p,{ready:false});await p.getByText('Waiting for the first Miso check-in.',{exact:true}).first().waitFor();assert.deepEqual(await p.locator('.gauge-number strong').allTextContents(),['-','-']);assert.equal(await p.locator('.checkin-row,.quota-segment.is-filled').count(),0);assert.deepEqual(await p.locator('.gauge-number strong').allTextContents(),['-','-']);
+ const p=await browser.newPage();await setup(p,{ready:false});await p.locator('.claude .one-line').getByText('Not measured yet.').waitFor();assert.deepEqual(await p.locator('.gauge-number strong').allTextContents(),['-','-']);assert.equal(await p.locator('.checkin-row,.quota-segment.is-filled').count(),0);assert.deepEqual(await p.locator('.gauge-number strong').allTextContents(),['-','-']);
  await p.unroute('**/api/allowance');await p.route('**/api/allowance',r=>r.fulfill({json:aggregate({stale:true})}));await p.reload();await p.getByText('Allowance evidence is stale.',{exact:false}).waitFor();assert.equal(await p.locator('.gauge-number strong').first().innerText(),'-');await p.close();
 });
 test('usage-only or malformed API responses cannot become allowance evidence',async()=>{
@@ -26,7 +24,7 @@ test('usage-only or malformed API responses cannot become allowance evidence',as
 });
 test('plan/model/context groups stay separate and unavailable selection is not silently replaced',async()=>{
  const p=await browser.newPage();const data=aggregate();data.cohorts.push({...data.cohorts[0],plan:'max_5x',model:'opus-4-5',index:100,status:'no_detectable_change',interval:[95,105]});
- await p.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));await p.route('**/api/allowance',r=>r.fulfill({json:data}));await p.goto(url);await p.getByLabel('Claude evidence group').first().waitFor();await p.getByLabel('Claude evidence group').first().selectOption('max_5x:opus-4-5:short:controlled-v1');assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'100');await p.close();
+ await p.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));await p.route('**/api/allowance',r=>r.fulfill({json:data}));await p.goto(url);await p.getByLabel('Claude evidence group').first().waitFor();await p.getByLabel('Claude evidence group').first().selectOption('max_5x:opus-4-5:short:controlled-v1');assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'Normal');assert.equal(await p.locator('.claude .quota-segment.is-filled').count(),40);await p.close();
 });
 test('navbar has only the wordmark and a Star on GitHub button',async()=>{
  const p=await browser.newPage();await setup(p,{ready:false});
@@ -37,7 +35,7 @@ test('navbar has only the wordmark and a Star on GitHub button',async()=>{
  await p.close();
 });
 test('mobile, system theme, feed and collector failures remain usable',async()=>{
- const p=await browser.newPage({viewport:{width:390,height:844},colorScheme:'dark'});const errors=[];p.on('pageerror',e=>errors.push(e.message));await setup(p);await p.locator('.claude .quota-segment.is-filled').first().waitFor();assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'50');assert.equal(await p.locator('.claude .quota-segment.is-filled').count(),20);assert.equal(await p.locator('.claude .provider-sub').innerText(),'−50% this week');assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ const p=await browser.newPage({viewport:{width:390,height:844},colorScheme:'dark'});const errors=[];p.on('pageerror',e=>errors.push(e.message));await setup(p);await p.locator('.claude .quota-segment.is-filled').first().waitFor();assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'−50%');assert.equal(await p.locator('.claude .quota-segment.is-filled').count(),20);assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  await p.emulateMedia({colorScheme:'light'});await p.waitForTimeout(200);assert.equal(await p.evaluate(()=>document.documentElement.dataset.theme),'dark');await p.screenshot({path:'/tmp/miso-allowance-mobile.png',fullPage:true});await p.setViewportSize({width:1440,height:1050});await p.screenshot({path:'/tmp/miso-allowance-desktop.png',fullPage:true});
  assert.ok(await p.getByRole('complementary',{name:'Recent internet posts'}).isVisible());await p.unroute('**/api/allowance');await p.route('**/api/allowance',r=>r.fulfill({status:503,json:{error:'offline'}}));await p.reload();await p.getByText('Can’t reach the data right now.',{exact:false}).waitFor();assert.equal(await p.locator('.checkin-row').count(),0);assert.deepEqual(errors,[]);await p.close();
 });

@@ -14,13 +14,13 @@ test('member schema accepts the demo and rejects bad counts or numbers',()=>{
  const empty=structuredClone(d);empty.members=0;empty.joinedToday=0;empty.checkedInToday=0;empty.providers={claude:null,codex:null};assert.equal(isPulse(empty),true);
 });
 async function open(page,pulse){await page.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));await page.route('**/api/allowance',r=>r.fulfill({json:{schema:1,method:'paired-controlled-workload-v1',generatedAt:Date.now(),freshnessMinutes:10,minCohort:10,currentDays:1,baselineDays:6,materialChangePercent:15,reportingInstallations:null,cohorts:[],limitations:[]}}));await page.route('**/api/pulse',r=>r.fulfill({json:pulse}));await page.goto(url);}
-test('GitHub downloads show as milestones and bars carry only usage',async()=>{
+test('GitHub downloads show as milestones and usage stays out of the bars',async()=>{
  const p=await browser.newPage();await p.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total:56,source:'github-release-zip-downloads'}}));await open(p,createDemoPulse(Date.now()));
  const count=p.locator('.live-status .download-count');await count.waitFor();assert.equal(await count.innerText(),'50+ downloads on GitHub');assert.equal(await count.getAttribute('href'),'https://github.com/Relay-harness/miso/releases');
- assert.equal((await p.locator('.claude .one-line').innerText()).trim(),'Typical 5-hour usage: 60% used');
- assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'60');assert.equal(await p.locator('.claude .quota-segment.is-filled').count(),24);
+ assert.equal(await p.locator('.claude .usage-note').innerText(),'Typical 5-hour use: 60%');assert.match(await p.locator('.claude .one-line').innerText(),/Not measured yet\./);
+ assert.equal(await p.locator('.claude .gauge-number strong').innerText(),'-');assert.equal(await p.locator('.quota-segment.is-filled').count(),0);assert.match(await p.locator('.codex .one-line').innerText(),/can’t calibrate Codex yet/);
  assert.doesNotMatch(await p.locator('.quota-board').innerText(),/\blive\b|\bmembers?\b|at the limit|check-in \d|Refresh now/i);
- assert.match(await p.title(),/^Claude 60% used/);
+ assert.doesNotMatch(await p.title(),/%/);
  await p.unroute('**/api/downloads');await p.close();
  for(const [total,label] of [[31,'31 downloads on GitHub'],[64,'60+ downloads on GitHub'],[70,'70+ downloads on GitHub'],[89,'80+ downloads on GitHub'],[100,'100+ downloads on GitHub'],[1250,'1,200+ downloads on GitHub']]){
   const q=await browser.newPage();await q.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total,source:'github-release-zip-downloads'}}));await open(q,createDemoPulse(Date.now()));
@@ -43,7 +43,7 @@ test('no download count from GitHub means no number, and bars still work',async(
 });
 test('empty or unreachable data never shows numbers',async()=>{
  const p=await browser.newPage();const d=createDemoPulse(Date.now());d.members=0;d.joinedToday=0;d.checkedInToday=0;d.providers={claude:null,codex:null};await open(p,d);
- await p.getByText('Waiting for the first Miso check-in.',{exact:true}).first().waitFor();await p.waitForTimeout(300);assert.equal(await p.locator('.live-bit').count(),0);assert.doesNotMatch(await p.title(),/%/);
+ await p.locator('.claude .one-line').getByText('Not measured yet.').waitFor();assert.equal(await p.locator('.usage-note').count(),0);await p.waitForTimeout(300);assert.equal(await p.locator('.live-bit').count(),0);assert.doesNotMatch(await p.title(),/%/);
  await p.unroute('**/api/pulse');await p.route('**/api/pulse',r=>r.fulfill({status:503,body:'unavailable'}));await p.evaluate(()=>window.dispatchEvent(new Event('online')));
  await p.getByText('Can’t reach the data right now.',{exact:false}).waitFor();await p.close();
 });
