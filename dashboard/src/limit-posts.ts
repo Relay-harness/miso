@@ -72,7 +72,7 @@ export function loadLimitPosts(now=Date.now()):Promise<LimitPostResult> {
  if(recentLoad&&now-recentLoad.at<240000)return recentLoad.result;
  const searches=LIMIT_SEARCHES.filter(s=>s.provider!=='Gemini');
  const result=Promise.allSettled(searches.map(async search=>{
-  const res=await fetch(limitSearchURL(search.query,now),{signal:AbortSignal.timeout(10000),credentials:'omit',referrerPolicy:'no-referrer'});
+  const res=await fetch(limitSearchURL(search.query,now),{signal:AbortSignal.timeout(25000),credentials:'omit',referrerPolicy:'no-referrer'});
   if(!res.ok)throw new Error();const body=await res.json();if(!Array.isArray(body.hits))throw new Error();
   return body.hits.map((hit:unknown)=>parseLimitPost(hit,now)).filter((p:LimitPost|null):p is LimitPost=>p!==null) as LimitPost[];
  })).then(results=>{

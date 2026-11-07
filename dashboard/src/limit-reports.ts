@@ -36,7 +36,7 @@ export function reportTrend(r:DailyReports):number|null {
 }
 
 async function json(url:string):Promise<any> {
- const res=await fetch(url,{signal:AbortSignal.timeout(10000),credentials:'omit',referrerPolicy:'no-referrer'});
+ const res=await fetch(url,{signal:AbortSignal.timeout(25000),credentials:'omit',referrerPolicy:'no-referrer'});
  if(!res.ok)throw new Error();
  return res.json();
 }
