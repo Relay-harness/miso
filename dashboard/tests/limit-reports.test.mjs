@@ -3,26 +3,17 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 const js=ts.transpileModule(readFileSync(new URL('../src/limit-reports.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
-const {bucketReports,reportTrend,isLimitTitle,githubSearchURL,hnSearchURL}=await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
-const NOW=Date.UTC(2026,10,7,12),DAY=86400000,ago=(d,h=1)=>NOW-d*DAY-h*3600000;
-test('rolling days put each post in the right bar and separate the two weeks',()=>{
- const r=bucketReports([ago(0),ago(0),ago(1),ago(6),ago(7),ago(13),ago(14)],NOW,['GitHub']);
- assert.deepEqual(r.days,[1,0,0,0,0,1,2]);assert.equal(r.total,4);assert.equal(r.prior,2);assert.equal(reportTrend(r),100);
- assert.deepEqual(bucketReports([NOW+3600000,NaN],NOW,['GitHub']).days,[0,0,0,0,0,0,0]);
+const {isReportsResponse,reportTrend}=await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
+const day=(over={})=>({days:[1,0,0,0,0,1,2],total:4,prior:2,capped:false,sources:['GitHub','Hacker News'],...over});
+const body=(claude=day(),codex=null)=>({schema:1,generatedAt:1800000000000,providers:{claude,codex}});
+test('accepts collector data, including a provider with no data',()=>{
+ assert.equal(isReportsResponse(body()),true);assert.equal(isReportsResponse(body(null,null)),true);assert.equal(isReportsResponse(body(day({prior:null,capped:true}))),true);
 });
-test('no trend without a known earlier week',()=>{
- assert.equal(reportTrend(bucketReports([ago(1)],NOW,['GitHub'])),null,'nothing to compare with');
- const capped=bucketReports([ago(1),ago(8)],NOW,['GitHub'],true);assert.equal(capped.prior,null);assert.equal(capped.capped,true);assert.equal(reportTrend(capped),null);
- assert.equal(bucketReports([ago(1),ago(8)],NOW,['GitHub'],false,false).prior,null,'incomplete search');
- assert.equal(reportTrend(bucketReports([ago(8),ago(9)],NOW,['GitHub'])),-100);
+test('rejects anything that could show a wrong number',()=>{
+ for(const bad of [day({total:5}),day({days:[1,2,3]}),day({days:[1,0,0,0,0,1,-2]}),day({prior:-1}),day({sources:[]}),day({sources:['Twitter']})])assert.equal(isReportsResponse(body(bad)),false,JSON.stringify(bad));
+ for(const bad of [null,{},{schema:2,generatedAt:1,providers:{claude:null,codex:null}},{schema:1,generatedAt:1}])assert.equal(isReportsResponse(bad),false);
 });
-test('titles must name the provider and a limit',()=>{
- for(const t of ['Claude usage limits cut','Anthropic quota changes'])assert.equal(isLimitTitle(t,'claude'),true,t);
- for(const t of ['Codex limit hit','ChatGPT rate limited again'])assert.equal(isLimitTitle(t,'codex'),true,t);
- for(const t of ['Building with Claude','Show HN: A Claude limit tracker','Codex limit hit',null])assert.equal(isLimitTitle(t,'claude'),false,String(t));
-});
-test('searches target the right repo, titles only, and 14 days',()=>{
- const g=new URL(githubSearchURL('codex',NOW)).searchParams.get('q');assert.match(g,/repo:openai\/codex is:issue in:title created:>=2026-10-24/);
- assert.match(new URL(githubSearchURL('claude',NOW,2)).search,/page=2/);assert.match(new URL(githubSearchURL('claude',NOW)).searchParams.get('q'),/repo:anthropics\/claude-code/);
- assert.equal(new URL(hnSearchURL('Claude limit',NOW)).searchParams.get('tags'),'story');
+test('a trend needs a known earlier week with reports',()=>{
+ assert.equal(reportTrend(day()),100);assert.equal(reportTrend(day({total:0,days:[0,0,0,0,0,0,0]})),-100);
+ assert.equal(reportTrend(day({prior:0})),null);assert.equal(reportTrend(day({prior:null})),null);
 });

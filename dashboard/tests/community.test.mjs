@@ -6,7 +6,7 @@ const url=process.env.DASHBOARD_URL||'http://127.0.0.1:5173';
 before(async()=>{browser=await chromium.launch({headless:true});});after(async()=>{await browser?.close();});
 async function mock(page,fail=false){
  await page.route('**/api/allowance',r=>r.fulfill({json:{schema:1,method:'paired-controlled-workload-v1',generatedAt:Date.now(),freshnessMinutes:10,minCohort:10,currentDays:1,baselineDays:6,materialChangePercent:15,reportingInstallations:null,cohorts:[],limitations:[]}}));
- await page.route('https://api.github.com/**',r=>r.fulfill({json:{total_count:0,items:[],incomplete_results:false}}));await page.route('https://hn.algolia.com/**',async route=>{
+ await page.route('**/api/reports',r=>r.fulfill({json:{schema:1,generatedAt:Date.now(),providers:{claude:{days:[0,0,0,0,0,0,0],total:0,prior:0,capped:false,sources:['GitHub','Hacker News']},codex:{days:[0,0,0,0,0,0,0],total:0,prior:0,capped:false,sources:['GitHub','Hacker News']}}}}));await page.route('https://hn.algolia.com/**',async route=>{
   if(fail){await route.abort();return;}
   const query=new URL(route.request().url()).searchParams.get('query');const provider=query.startsWith('Claude')?'Claude':query.startsWith('Gemini')?'Gemini':'OpenAI';
   const label=provider==='OpenAI'?'Codex':provider;const offset={Claude:1,OpenAI:2,Gemini:3}[provider];
@@ -33,7 +33,7 @@ test('dashboard preview leads with concrete comparisons and excludes popular gen
 });
 test('only low-signal source results leave both views empty rather than fill space',async()=>{
  const p=await browser.newPage();await mock(p);
- await p.route('https://api.github.com/**',r=>r.fulfill({json:{total_count:0,items:[],incomplete_results:false}}));await p.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[{objectID:'9999',title:'Building with Claude: a new launch',author:'promotion',created_at_i:Math.floor(Date.now()/1000),points:999,num_comments:500}]}}));
+ await p.route('**/api/reports',r=>r.fulfill({json:{schema:1,generatedAt:Date.now(),providers:{claude:{days:[0,0,0,0,0,0,0],total:0,prior:0,capped:false,sources:['GitHub','Hacker News']},codex:{days:[0,0,0,0,0,0,0],total:0,prior:0,capped:false,sources:['GitHub','Hacker News']}}}}));await p.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[{objectID:'9999',title:'Building with Claude: a new launch',author:'promotion',created_at_i:Math.floor(Date.now()/1000),points:999,num_comments:500}]}}));
  await p.goto(url);await p.getByText('No specific quota reports in the last 90 days.',{exact:true}).waitFor();
  assert.equal(await p.locator('.internet-brief li').count(),0);
  await p.getByRole('button',{name:'More reports →',exact:true}).click();await p.getByRole('heading',{name:'No posts match this filter.'}).waitFor();

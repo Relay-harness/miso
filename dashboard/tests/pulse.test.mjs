@@ -14,7 +14,7 @@ test('member schema accepts the demo and rejects bad counts or numbers',()=>{
  const empty=structuredClone(d);empty.members=0;empty.joinedToday=0;empty.checkedInToday=0;empty.providers={claude:null,codex:null};assert.equal(isPulse(empty),true);
 });
 const EMPTY_ALLOWANCE=()=>({schema:1,method:'paired-controlled-workload-v1',generatedAt:Date.now(),freshnessMinutes:10,minCohort:10,currentDays:1,baselineDays:6,materialChangePercent:15,reportingInstallations:null,cohorts:[],limitations:[]});
-async function open(page,pulse){await page.route('https://api.github.com/**',r=>r.fulfill({json:{total_count:0,items:[],incomplete_results:false}}));await page.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));await page.route('**/api/allowance',r=>r.fulfill({json:{schema:1,method:'paired-controlled-workload-v1',generatedAt:Date.now(),freshnessMinutes:10,minCohort:10,currentDays:1,baselineDays:6,materialChangePercent:15,reportingInstallations:null,cohorts:[],limitations:[]}}));await page.route('**/api/pulse',r=>r.fulfill({json:pulse}));await page.goto(url);}
+async function open(page,pulse){await page.route('**/api/reports',r=>r.fulfill({json:{schema:1,generatedAt:Date.now(),providers:{claude:{days:[0,0,0,0,0,0,0],total:0,prior:0,capped:false,sources:['GitHub','Hacker News']},codex:{days:[0,0,0,0,0,0,0],total:0,prior:0,capped:false,sources:['GitHub','Hacker News']}}}}));await page.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));await page.route('**/api/allowance',r=>r.fulfill({json:{schema:1,method:'paired-controlled-workload-v1',generatedAt:Date.now(),freshnessMinutes:10,minCohort:10,currentDays:1,baselineDays:6,materialChangePercent:15,reportingInstallations:null,cohorts:[],limitations:[]}}));await page.route('**/api/pulse',r=>r.fulfill({json:pulse}));await page.goto(url);}
 test('GitHub downloads show as milestones and usage stays out of the bars',async()=>{
  const p=await browser.newPage();await p.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total:56,source:'github-release-zip-downloads'}}));await open(p,createDemoPulse(Date.now()));
  const count=p.locator('.live-status .download-count');await count.waitFor();assert.equal(await count.innerText(),'50+ downloads on GitHub');assert.equal(await count.getAttribute('href'),'https://github.com/Relay-harness/miso/releases');
@@ -48,23 +48,22 @@ test('empty or unreachable data never shows numbers',async()=>{
  await p.unroute('**/api/pulse');await p.route('**/api/pulse',r=>r.fulfill({status:503,body:'unavailable'}));await p.evaluate(()=>window.dispatchEvent(new Event('online')));
  await p.getByText('Can’t reach the data right now.',{exact:false}).waitFor();await p.close();
 });
-test('the figure is a live 7-day report count, one bar per day, and survives a failed source',async()=>{
- const t=Date.now(),iso=d=>new Date(t-d*86400000-3600000).toISOString(),unix=d=>Math.floor((t-d*86400000-3600000)/1000);
- const items=[0,0,0,3,9,10].map(d=>({created_at:iso(d)}));
- const hits=[{objectID:'1',title:'Claude usage limits cut',created_at_i:unix(1)},{objectID:'2',title:'Show HN: A Claude limit tracker',created_at_i:unix(1)},{objectID:'3',title:'Building with Claude',created_at_i:unix(1)}];
- const p=await browser.newPage();await p.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total:null,source:'x'}}));await p.route('**/api/pulse',r=>r.fulfill({json:createDemoPulse(Date.now())}));await p.route('**/api/allowance',r=>r.fulfill({json:EMPTY_ALLOWANCE()}));
- await p.route('https://api.github.com/**',r=>r.fulfill({json:r.request().url().includes('claude-code')?{total_count:6,items,incomplete_results:false}:{total_count:0,items:[],incomplete_results:false}}));await p.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits}}));await p.goto(url);
+test('the figure is the collector 7-day count, one bar per day, and never invents a number',async()=>{
+ const report=(days,prior,sources=['GitHub','Hacker News'])=>({days,total:days.reduce((a,b)=>a+b,0),prior,capped:false,sources});
+ const page=async providers=>{const p=await browser.newPage();await p.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total:null,source:'x'}}));await p.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));await p.route('**/api/pulse',r=>r.fulfill({json:createDemoPulse(Date.now())}));await p.route('**/api/allowance',r=>r.fulfill({json:EMPTY_ALLOWANCE()}));await p.route('**/api/reports',r=>typeof providers==='number'?r.fulfill({status:providers,body:'down'}):r.fulfill({json:{schema:1,generatedAt:Date.now(),providers}}));await p.goto(url);return p;};
+ const p=await page({claude:report([0,0,0,1,0,1,3],2),codex:report([0,0,0,0,0,0,0],0)});
  await p.locator('.claude .gauge-number strong',{hasText:'5'}).waitFor();
  assert.equal(await p.locator('.claude .day-bar').count(),7);assert.equal(await p.locator('.claude .day-bar:not(.is-zero)').count(),3);
  assert.equal(await p.locator('.claude .report-note').innerText(),'+150% vs last week · GitHub, Hacker News');
- assert.equal(await p.locator('.codex .gauge-number strong').innerText(),'0');assert.equal(await p.locator('.codex .day-bar.is-zero').count(),7);
+ assert.equal(await p.locator('.codex .gauge-number strong').innerText(),'0');assert.equal(await p.locator('.codex .day-bar.is-zero').count(),7);assert.equal(await p.locator('.codex .report-note').innerText(),'GitHub, Hacker News');
  assert.doesNotMatch(await p.locator('.quota-board').innerText(),/No change announced/);await p.setViewportSize({width:320,height:700});assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'fits a narrow phone');await p.close();
- const q=await browser.newPage();await q.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total:null,source:'x'}}));await q.route('**/api/pulse',r=>r.fulfill({json:createDemoPulse(Date.now())}));await q.route('**/api/allowance',r=>r.fulfill({json:EMPTY_ALLOWANCE()}));
- await q.route('https://api.github.com/**',r=>r.fulfill({status:403,body:'limited'}));await q.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits}}));await q.goto(url);
- await q.locator('.claude .report-note').waitFor();assert.equal(await q.locator('.claude .report-note').innerText(),'Hacker News');assert.equal(await q.locator('.claude .gauge-number strong').innerText(),'1');await q.close();
- const n=await browser.newPage();await n.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total:null,source:'x'}}));await n.route('**/api/pulse',r=>r.fulfill({json:createDemoPulse(Date.now())}));await n.route('**/api/allowance',r=>r.fulfill({json:EMPTY_ALLOWANCE()}));
- await n.route('https://api.github.com/**',r=>r.fulfill({status:503,body:'down'}));await n.route('https://hn.algolia.com/**',r=>r.fulfill({status:503,body:'down'}));await n.goto(url);
- await n.locator('.claude .one-line').getByText('Last:',{exact:false}).waitFor();await n.waitForTimeout(400);assert.equal(await n.locator('.claude .gauge-number strong').innerText(),'-');assert.equal(await n.locator('.day-bar').count(),0);await n.close();
+ const one=await page({claude:report([0,0,0,0,0,0,1],null,['Hacker News']),codex:null});
+ await one.locator('.claude .report-note').waitFor();assert.equal(await one.locator('.claude .report-note').innerText(),'Hacker News');assert.equal(await one.locator('.codex .gauge-number strong').innerText(),'-');assert.equal(await one.locator('.codex .day-bar').count(),0);await one.close();
+ const none=await page(503);await none.locator('.claude .one-line').getByText('Last:',{exact:false}).waitFor();await none.waitForTimeout(400);assert.equal(await none.locator('.claude .gauge-number strong').innerText(),'-');assert.equal(await none.locator('.day-bar').count(),0);await none.close();
+ const bad=await page({claude:{days:[1],total:99,prior:0,capped:false,sources:['GitHub']},codex:null});await bad.waitForTimeout(400);assert.equal(await bad.locator('.claude .gauge-number strong').innerText(),'-','a malformed response shows no number');await bad.close();
+});
+test('reports come from the collector, never straight from GitHub',async()=>{
+ const p=await browser.newPage();const direct=[];p.on('request',r=>{if(r.url().includes('api.github.com'))direct.push(r.url());});await p.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));await p.route('**/api/**',r=>r.fulfill({status:503,body:'x'}));await p.goto(url);await p.locator('.claude .one-line b').waitFor();await p.waitForTimeout(300);assert.deepEqual(direct,[]);await p.close();
 });
 test('install command can be copied',async()=>{
  const ctx=await browser.newContext({permissions:['clipboard-read','clipboard-write']});const p=await ctx.newPage();await open(p,createDemoPulse(Date.now()));

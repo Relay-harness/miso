@@ -6,7 +6,7 @@ import type {Pulse} from './pulse-data';
 import {isAllowanceCommunity} from './allowance-data';
 import type {AllowanceCommunity,AllowanceCohort} from './allowance-data';
 import {limitChange} from './limit-change';
-import {loadReports,reportTrend} from './limit-reports';
+import {isReportsResponse,reportTrend} from './limit-reports';
 import type {DailyReports,Provider} from './limit-reports';
 const plan=(p:string)=>({pro:'Pro',max_5x:'Max 5x',max_20x:'Max 20x',plus:'Plus'} as Record<string,string>)[p]??p;
 const model=(m:string)=>m.replace(/^gpt-(\d+)-(\d+)-codex$/,'GPT-$1.$2 Codex').replace(/^gpt-5-codex$/,'GPT-5 Codex').replace(/^(sonnet|opus|haiku)-(\d+)(?:-(\d+))?$/,(_,n,a,b)=>n[0].toUpperCase()+n.slice(1)+' '+a+(b?'.'+b:''));
@@ -71,10 +71,12 @@ export function QuotaBoard(){
   return()=>{active=false;controller.current?.abort();window.clearInterval(interval);};
  },[attempt,demo]);
  const [reports,setReports]=useState<Record<Provider,DailyReports|null>>({claude:null,codex:null});
+ // A failed refresh keeps the last good numbers on screen.
  useEffect(()=>{if(demo)return;let active=true;
-  const load=async()=>{try{const r=await loadReports();if(active)setReports(r);}catch{}};
-  void load();const t=window.setInterval(()=>{if(document.visibilityState==='visible')void load();},300000);
-  return()=>{active=false;window.clearInterval(t);};
+  const load=async()=>{try{const r=await fetch(API+'/api/reports',{signal:AbortSignal.timeout(25000),credentials:'omit',cache:'no-store'});if(!r.ok)throw new Error();const v:unknown=await r.json();if(active&&isReportsResponse(v))setReports(v.providers);}catch{}};
+  const resume=()=>{if(document.visibilityState==='visible')void load();};
+  void load();const t=window.setInterval(resume,600000);document.addEventListener('visibilitychange',resume);
+  return()=>{active=false;window.clearInterval(t);document.removeEventListener('visibilitychange',resume);};
  },[demo]);
  const stale=!!data&&(now-data.generatedAt>data.freshnessMinutes*60000||data.generatedAt>now+60000);
  const available=!!data&&!error&&!stale;

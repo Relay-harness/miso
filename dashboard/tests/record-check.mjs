@@ -2,7 +2,7 @@ import {chromium} from 'playwright';
 const browser=await chromium.launch({headless:true});
 try{
  const page=await browser.newPage({viewport:{width:1440,height:1050},colorScheme:'light'});
- await page.route('https://api.github.com/**',r=>r.fulfill({json:{total_count:0,items:[],incomplete_results:false}}));await page.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));
+ await page.route('**/api/reports',r=>r.fulfill({json:{schema:1,generatedAt:Date.now(),providers:{claude:{days:[0,0,0,0,0,0,0],total:0,prior:0,capped:false,sources:['GitHub','Hacker News']},codex:{days:[0,0,0,0,0,0,0],total:0,prior:0,capped:false,sources:['GitHub','Hacker News']}}}}));await page.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));
  const base=process.env.DASHBOARD_URL||'http://127.0.0.1:8787';
  await page.goto(base);await page.waitForFunction(()=>!document.querySelector('.status-label')?.textContent.includes('Updating'));
  await page.screenshot({path:'/tmp/miso-allowance-live-desktop.png',fullPage:true});
