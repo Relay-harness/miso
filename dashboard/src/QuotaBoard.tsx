@@ -6,14 +6,13 @@ import type {Pulse} from './pulse-data';
 import {isAllowanceCommunity} from './allowance-data';
 import type {AllowanceCommunity,AllowanceCohort} from './allowance-data';
 import {limitChange} from './limit-change';
-import {isReportsResponse,reportTrend} from './limit-reports';
-import type {DailyReports,Provider} from './limit-reports';
+import {isVoteSummary,voteGauge,VOTE_BUTTONS} from './limit-votes';
+import type {Provider,VoteSummary} from './limit-votes';
 const plan=(p:string)=>({pro:'Pro',max_5x:'Max 5x',max_20x:'Max 20x',plus:'Plus'} as Record<string,string>)[p]??p;
 const model=(m:string)=>m.replace(/^gpt-(\d+)-(\d+)-codex$/,'GPT-$1.$2 Codex').replace(/^gpt-5-codex$/,'GPT-5 Codex').replace(/^(sonnet|opus|haiku)-(\d+)(?:-(\d+))?$/,(_,n,a,b)=>n[0].toUpperCase()+n.slice(1)+' '+a+(b?'.'+b:''));
 const ago=(t:number)=>{const m=Math.max(0,Math.round((Date.now()-t)/60000));return m<1?'just now':m<60?`${m}m ago`:`${Math.round(m/60)}h ago`;};
 const name=(p:'claude'|'codex')=>p==='claude'?'Claude':'Codex';
 const when=(d:string,now:number)=>{const date=new Date(d);return date.toLocaleDateString('en-US',{month:'short',day:'numeric',...(date.getUTCFullYear()===new Date(now).getUTCFullYear()?{}:{year:'numeric' as const}),timeZone:'UTC'});};
-const dayName=(ago:number)=>ago===0?'Past 24 hours':ago===1?'Yesterday':`${ago} days ago`;
 const macs=(n:number|null)=>n===null?'':` · ${n} ${n===1?'Mac':'Macs'}`;
 const range=(c:AllowanceCohort)=>{const [lo,hi]=c.interval!;const f=(n:number)=>n===0?'0':(n>0?'+':'−')+Math.abs(n);const a=lo-100,b=hi-100;return a===b?f(a)+'%':Math.abs(a)>Math.abs(b)?`${f(b)} to ${f(a)}%`:`${f(a)} to ${f(b)}%`;};
 // 56 downloads reads as 50+, 64 as 60+, 85 as 80+. Below 50 the count is exact; from 1,000 it steps by 100.
@@ -70,14 +69,19 @@ export function QuotaBoard(){
   void load();const interval=window.setInterval(()=>{setNow(Date.now());if(document.visibilityState==='visible')void load();},60000);
   return()=>{active=false;controller.current?.abort();window.clearInterval(interval);};
  },[attempt,demo]);
- const [reports,setReports]=useState<Record<Provider,DailyReports|null>>({claude:null,codex:null});
+ const [votes,setVotes]=useState<VoteSummary|null>(null);
+ const [filed,setFiled]=useState<Partial<Record<Provider,number>>>(()=>{const out:Partial<Record<Provider,number>>={};for(const p of ['claude','codex'] as const){try{const v=JSON.parse(localStorage.getItem(`limitReport-${p}`)||'null');if(v&&v.day===Math.floor(Date.now()/86400000)&&Number.isInteger(v.percent))out[p]=v.percent;}catch{}}return out;});
+ const [sending,setSending]=useState<Provider|null>(null),[reportError,setReportError]=useState<Provider|null>(null);
  // A failed refresh keeps the last good numbers on screen.
  useEffect(()=>{if(demo)return;let active=true;
-  const load=async()=>{try{const r=await fetch(API+'/api/reports',{signal:AbortSignal.timeout(25000),credentials:'omit',cache:'no-store'});if(!r.ok)throw new Error();const v:unknown=await r.json();if(active&&isReportsResponse(v))setReports(v.providers);}catch{}};
+  const load=async()=>{try{const r=await fetch(API+'/api/limit-reports',{signal:AbortSignal.timeout(25000),credentials:'omit',cache:'no-store'});if(!r.ok)throw new Error();const v:unknown=await r.json();if(active&&isVoteSummary(v))setVotes(v);}catch{}};
   const resume=()=>{if(document.visibilityState==='visible')void load();};
   void load();const t=window.setInterval(resume,600000);document.addEventListener('visibilitychange',resume);
   return()=>{active=false;window.clearInterval(t);document.removeEventListener('visibilitychange',resume);};
  },[demo]);
+ const fileReport=async(provider:Provider,percent:number)=>{setSending(provider);setReportError(null);
+  try{const r=await fetch(API+'/api/limit-reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider,percent}),signal:AbortSignal.timeout(25000),credentials:'omit'});if(!r.ok)throw new Error();const v:unknown=await r.json();if(!isVoteSummary(v))throw new Error();setVotes(v);setFiled(old=>({...old,[provider]:percent}));try{localStorage.setItem(`limitReport-${provider}`,JSON.stringify({percent,day:Math.floor(Date.now()/86400000)}));}catch{}}
+  catch{setReportError(provider);}finally{setSending(null);}};
  const stale=!!data&&(now-data.generatedAt>data.freshnessMinutes*60000||data.generatedAt>now+60000);
  const available=!!data&&!error&&!stale;
  return <section className="quota-board minimal-quota allowance-board clean" aria-label="Claude and Codex limits">
@@ -93,24 +97,22 @@ export function QuotaBoard(){
    const usage=!demo?members?.providers[provider]??null:null;
    const change=limitChange(provider,cohort,now);
    const label=provider==='claude'?'Claude':'OpenAI';
-   // A measured result or a change from this week is the figure. Otherwise the figure is the live 7-day report count.
-   const daily=change.state==='quiet'||change.state==='unknown'?reports[provider]:null;
-   const trend=daily?reportTrend(daily):null;
-   const figure=change.state==='cut'?`−${change.percent}%`:change.state==='extra'?`+${change.percent}%`:change.state==='normal'?'Normal':change.state==='unclear'?'Unclear':change.state==='changed'?'Changed':daily?`${daily.total.toLocaleString()}${daily.capped?'+':''}`:'-';
-   const tone=change.state==='cut'?'decreased':change.state==='extra'?'increased':'neutral';
+   // A measured result or a change from this week is the figure. Otherwise it is what people reported this week.
+   const said=(change.state==='quiet'||change.state==='unknown')&&votes?voteGauge(label,votes.providers[provider]):null;
+   const figure=change.state==='cut'?`−${change.percent}%`:change.state==='extra'?`+${change.percent}%`:change.state==='normal'?'Normal':change.state==='unclear'?'Unclear':change.state==='changed'?'Changed':said?said.figure:'-';
+   const tone=said?said.tone:change.state==='cut'?'decreased':change.state==='extra'?'increased':'neutral';
    const measured=!change.announcement&&change.state!=='unknown'&&!!cohort?.interval;
-   const summary=daily?`${figure} limit reports in the past 7 days. By day, oldest first: ${daily.days.join(', ')}.`:change.state==='quiet'?`No reports available. Last change: ${change.announcement.headline}.`:change.announcement?`${figure}, not measured by Miso. ${change.announcement.headline}.`:change.state==='cut'?`Limit cut by ${change.percent}%.`:change.state==='extra'?`Extra limit, ${change.percent}% higher.`:change.state==='normal'?'Limit is normal, no change detected.':change.state==='unclear'?'The measurements disagree, so no change is shown.':'Limit change not measured yet.';
+   const summary=said?`${said.headline}. ${said.who}.`:change.state==='quiet'?`No reports available. Last change: ${change.announcement.headline}.`:change.announcement?`${figure}, not measured by Miso. ${change.announcement.headline}.`:change.state==='cut'?`Limit cut by ${change.percent}%.`:change.state==='extra'?`Extra limit, ${change.percent}% higher.`:change.state==='normal'?'Limit is normal, no change detected.':change.state==='unclear'?'The measurements disagree, so no change is shown.':'Limit change not measured yet.';
    const announced=change.announcement;
+   const filled=said?said.filled:change.filled;
    const source=macs(change.contributors);
    return <article key={provider} className={`quota-gauge provider-row ${provider} ${kind} ${tone==='decreased'?'allowance-decreased':''}`} aria-label={`${label} five-hour limit change`}>
-    <div className="provider-line"><h2>{provider==='claude'?<img className="provider-mark" src="/claude-ai-logo.png" width={22} height={22} alt="" aria-hidden="true"/>:<OpenAiLogo className="provider-mark" size={22} aria-hidden="true"/>}{label}</h2><div className={`gauge-number tone-${tone} ${['normal','unclear','changed'].includes(change.state)?'is-word':''} ${daily?'is-count':''}`}><strong>{figure}</strong>{daily&&<span>limit reports · 7 days</span>}</div></div>
-    <div className="provider-reading">{daily?<div className="pressure-track day-track" role="img" title={[usage?`Typical 5-hour use: ${usage.medianUsed}%`:'','Public posts whose titles mention limits. Not the size of any limit.'].filter(Boolean).join(' · ')} aria-label={summary}>
-     {daily.days.map((count,i)=><i key={i} aria-hidden="true" title={`${dayName(6-i)}: ${count}`} className={`day-bar ${count?'':'is-zero'}`} style={{height:count?`${Math.max(8,Math.round(count/Math.max(...daily.days)*100))}%`:undefined}}/>)}
-    </div>:<div className={`pressure-track segmented-track ${change.filled?'':'no-readings'}`} role="img" title={[measured?`Likely ${range(cohort!)} · ${cohort!.contributors} ${plan(cohort!.plan)} users on ${model(cohort!.model)} · updated ${ago(cohort!.latestAt!)}`:'',usage?`Typical 5-hour use: ${usage.medianUsed}%`:''].filter(Boolean).join(' · ')||undefined} aria-label={summary}>
-     {Array.from({length:40},(_,i)=><i key={i} aria-hidden="true" className={`quota-segment ${i<change.filled?'is-filled':change.state==='cut'?'is-lost':''}`}/>)}
-    </div>}</div>
-    {daily&&<p className="report-note">{trend!==null&&<>{trend>0?'+':trend<0?'−':''}{Math.abs(trend)}% vs last week · </>}{daily.sources.join(', ')}</p>}
-    <p className={`one-line tone-${tone}`}>{announced?<span title={announced.detail}><b>{change.state==='quiet'?`Last: ${announced.headline}`:announced.headline}</b> · {change.state==='quiet'?'':'Announced '}{when(announced.date,now)} · <a href={announced.url} target="_blank" rel="noopener noreferrer">{announced.source}</a></span>:loading&&!data&&change.state==='unknown'?'Checking…':change.state==='cut'?<span><b>Limit cut</b> · vs past week{source}</span>:change.state==='extra'?<span><b>Extra limit</b> · vs past week{source}</span>:change.state==='normal'?<span><b>No change</b> · vs past week{source}</span>:change.state==='unclear'?<span><b>Measurements disagree</b>{source}</span>:<span><b>Not measured yet</b></span>}</p>
+    <div className="provider-line"><h2>{provider==='claude'?<img className="provider-mark" src="/claude-ai-logo.png" width={22} height={22} alt="" aria-hidden="true"/>:<OpenAiLogo className="provider-mark" size={22} aria-hidden="true"/>}{label}</h2><div className={`gauge-number tone-${tone} ${['Normal','Unclear','Changed','Increased'].includes(figure)?'is-word':''}`}><strong>{figure}</strong></div></div>
+    <div className="provider-reading"><div className={`pressure-track segmented-track ${filled?'':'no-readings'}`} role="img" title={[measured?`Likely ${range(cohort!)} · ${cohort!.contributors} ${plan(cohort!.plan)} users on ${model(cohort!.model)} · updated ${ago(cohort!.latestAt!)}`:'',said?'What people reported, not a measurement. Normal until 5 people report.':'',usage?`Typical 5-hour use: ${usage.medianUsed}%`:'',said&&announced?`Last announced change: ${announced.headline}, ${when(announced.date,now)}`:''].filter(Boolean).join(' · ')||undefined} aria-label={summary}>
+     {Array.from({length:40},(_,i)=><i key={i} aria-hidden="true" className={`quota-segment ${i<filled?'is-filled':tone==='decreased'?'is-lost':''}`}/>)}
+    </div></div>
+    <p className={`one-line tone-${tone}`}>{said?<span><b>{said.headline}</b> · {said.who}</span>:announced?<span title={announced.detail}><b>{change.state==='quiet'?`Last: ${announced.headline}`:announced.headline}</b> · {change.state==='quiet'?'':'Announced '}{when(announced.date,now)} · <a href={announced.url} target="_blank" rel="noopener noreferrer">{announced.source}</a></span>:loading&&!data&&change.state==='unknown'?'Checking…':change.state==='cut'?<span><b>Limit cut</b> · vs past week{source}</span>:change.state==='extra'?<span><b>Extra limit</b> · vs past week{source}</span>:change.state==='normal'?<span><b>No change</b> · vs past week{source}</span>:change.state==='unclear'?<span><b>Measurements disagree</b>{source}</span>:<span><b>Not measured yet</b></span>}</p>
+    {!demo&&<div className="limit-report" role="group" aria-label={`Report your ${label} limit`}><p>{reportError===provider?'Couldn’t send that. Try again.':filed[provider]!==undefined?'Thanks. Your report is in.':`How is your ${label} limit?`}</p><div className="limit-report-buttons">{VOTE_BUTTONS.map(b=><button key={b.percent} type="button" disabled={sending===provider} aria-pressed={filed[provider]===b.percent} onClick={()=>void fileReport(provider,b.percent)}>{b.label}</button>)}</div></div>}
     {groups.length>1&&<label className="evidence-group"><span className="sr-only">{provider==='claude'?'Claude':'OpenAI'} group</span><select aria-label={`${provider==='claude'?'Claude':'OpenAI'} evidence group`} value={cohort?key(cohort):''} onChange={event=>setSelection(previous=>({...previous,[provider]:event.target.value}))}>{!cohort&&<option value="" disabled>Select a group</option>}{groups.map(c=><option key={key(c)} value={key(c)}>{groupLabel(c)}</option>)}</select></label>}
    </article>;
   })}</div>

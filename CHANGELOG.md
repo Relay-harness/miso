@@ -2,13 +2,7 @@
 
 ## Unreleased
 
-- Website: until Miso has its own measurements, a percentage only shows for a change announced in the past 7 days. Otherwise the figure is a live count of limit reports from GitHub and Hacker News over the past 7 days, with one bar per day and the last announced change underneath. Typical usage and fuller details appear on hover.
-
-## Unreleased
-
-- Website: until Miso has its own measurements, each bar shows the provider's last announced limit change with its date and source, labelled as not measured by Miso.
-
-- Website: each bar now shows whether the limit changed: a cut such as -30%, Normal, extra such as +25%, Unclear, or Not measured yet. Figures come only from Miso's calibration or a provider's own announcement. Typical usage moves to a small line of text under the bar.
+- Website: visitors can report their own limit in one tap: −30%, −20%, −10%, Normal or Increased. Each bar shows the typical report from the past 7 days, and stays Normal until 5 people report. An announced change from the past 7 days, or Miso's own measurement, takes priority. Reports are what people say, not a measurement.
 
 ## 1.9.8 - Know when Miso is watching
 
