@@ -54,10 +54,6 @@ Reports use the canonical collector `https://api.throttleindex.com`; saved `http
 
 Stopping sharing cancels pending uploads but does not retract earlier accepted data. **Delete my shared readings** signs deletion for the active file identity, and retains the key if the server cannot confirm. Pre-1.9.3 keys that differ from the active key have a separate explicit legacy-deletion action. No unrelated identity is silently erased. Raw quota reports expire after 48 hours; operator logs/backups need their own retention controls. Deleting/uninstalling an app alone does not guarantee immediate server removal.
 
-## Limit reports on the website
-
-Anyone can report how their Claude or OpenAI limit feels on throttleindex.com, with no sign-in. The collector stores the provider, the choice, the date and a salted one-way hash of the network address, used so one network counts once. The network address itself is not stored. Reports and their hashes are deleted after **7 days**. The browser also remembers your choice for that day in local storage. Your report is not linked to Miso or to any account.
-
 ## Public web dashboard
 
 The public page requests aggregated community quota data from its collector origin. It separately fetches public Hacker News stories from hn.algolia.com on page load for the compact source rail and when the full Internet signal is opened, with refreshes every five minutes while visible; Algolia receives the visitor's network address and targeted provider/limit/quota queries with a 90-day date cutoff, not native quota reports or credentials. Public titles and available story text are filtered locally for specific subscription-limit reports; selected posts include source attribution and remain unverified author claims. Reddit/X are outbound search links, not embedded authenticated feeds. There are no advertising analytics or account-login forms in this implementation.

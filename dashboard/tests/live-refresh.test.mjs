@@ -4,7 +4,7 @@ import {chromium} from 'playwright';
 const url=process.env.DASHBOARD_URL||'http://127.0.0.1:5173';let browser;
 before(async()=>{browser=await chromium.launch({headless:true});});after(async()=>{await browser?.close();});
 const allowance=response=>new URL(response.url()).pathname==='/api/allowance';
-async function prepare(page){await page.clock.install();await page.route('**/api/limit-reports',r=>r.fulfill({json:{schema:1,generatedAt:Date.now(),windowDays:7,minReports:5,providers:{claude:{reports:0,percent:0},codex:{reports:0,percent:0}}}}));await page.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));}
+async function prepare(page){await page.clock.install();await page.route('**/api/limit-signal',r=>r.fulfill({json:{schema:1,generatedAt:Date.now(),minStated:3,providers:{claude:{posts:0,stated:0,percent:0,sources:['GitHub','Hacker News']},codex:{posts:0,stated:0,percent:0,sources:['GitHub','Hacker News']}}}}));await page.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));}
 test('live page polls the real read-only allowance API automatically after one minute',async()=>{
  const page=await browser.newPage();await prepare(page);let count=0;page.on('request',r=>{if(new URL(r.url()).pathname==='/api/allowance')count++;});
  const first=page.waitForResponse(allowance);await page.goto(url);const firstResponse=await first;assert.equal(firstResponse.status(),200);assert.equal((await firstResponse.json()).method,'paired-controlled-workload-v1');

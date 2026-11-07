@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Website: visitors can report their own limit in one tap: −30%, −20%, −10%, Normal or Increased. Each bar shows the typical report from the past 7 days, and stays Normal until 5 people report. An announced change from the past 7 days, or Miso's own measurement, takes priority. Reports are what people say, not a measurement.
+- Website: the collector reads public GitHub and Hacker News posts about limits, and each bar shows Normal or a stated change such as −30%. A change only shows once 3 separate posts state one in the past 7 days. An announced change from the past 7 days, or Miso's own measurement, takes priority. This is what posts say, not a measurement.
 
 ## 1.9.8 - Know when Miso is watching
 

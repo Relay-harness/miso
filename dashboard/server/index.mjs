@@ -4,7 +4,7 @@ import {dirname,resolve,extname,sep} from 'node:path';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {SignalStore,SignalError} from './store.mjs';
-import {VoteError} from './limit-votes.mjs';
+import {createSignal} from './limit-signal.mjs';
 
 // Public download total from GitHub releases (ZIP assets only). Cached; null when GitHub is unreachable.
 let downloadsCache={value:null,at:0};
@@ -17,8 +17,8 @@ async function releaseDownloads(clock){
   downloadsCache.value=total;}catch{}
  return downloadsCache.value;
 }
-export function createService({path=':memory:',minCohort=5,clock=()=>Date.now(),allowedOrigin='',staticDirectory=null,clientIpHeader=''}={}){
- const store=new SignalStore(path,{minCohort,clock});const rates=new Map();let cached=null;let cachedAt=0;let allowanceCached=null;let allowanceCachedAt=0;let pulseCached=null;let pulseCachedAt=0;let votesCached=null;let votesCachedAt=0;const voteRates=new Map();
+export function createService({path=':memory:',minCohort=5,clock=()=>Date.now(),allowedOrigin='',staticDirectory=null,clientIpHeader='',signal=createSignal({clock})}={}){
+ const store=new SignalStore(path,{minCohort,clock});const rates=new Map();let cached=null;let cachedAt=0;let allowanceCached=null;let allowanceCachedAt=0;let pulseCached=null;let pulseCachedAt=0;
  const server=http.createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');
   // The public dashboard may read aggregate, read-only endpoints directly. Writes never accept browser origins.
@@ -29,25 +29,7 @@ export function createService({path=':memory:',minCohort=5,clock=()=>Date.now(),
   if(req.method==='GET'&&pathname==='/api/allowance'){if(!allowanceCached||clock()-allowanceCachedAt>=15000){allowanceCached=store.aggregateAllowance();allowanceCachedAt=clock();}return reply(200,allowanceCached);}
   if(req.method==='GET'&&pathname==='/api/pulse'){if(!pulseCached||clock()-pulseCachedAt>=15000){pulseCached=store.pulse();pulseCachedAt=clock();}return reply(200,pulseCached);}
   if(req.method==='GET'&&pathname==='/api/downloads'){const total=process.env.MISO_OFFLINE_DOWNLOADS!==undefined?Number(process.env.MISO_OFFLINE_DOWNLOADS):await releaseDownloads(clock);return reply(200,{schema:1,total:Number.isSafeInteger(total)?total:null,source:'github-release-zip-downloads'});}
-  if(pathname==='/api/limit-reports'){
-   // Reading is public. Filing comes only from the website: same data, no accounts, one report per network, per day.
-   const siteOrigins=['https://www.throttleindex.com','https://throttleindex.com',...(allowedOrigin?[allowedOrigin]:[])],fromSite=siteOrigins.includes(req.headers.origin);
-   if(req.method==='GET'){if(!votesCached||clock()-votesCachedAt>=15000){votesCached=store.votes.summary();votesCachedAt=clock();}return reply(200,votesCached);}
-   if(req.method==='OPTIONS'&&fromSite){res.setHeader('Access-Control-Allow-Origin',req.headers.origin);res.setHeader('Vary','Origin');res.setHeader('Access-Control-Allow-Methods','POST');res.setHeader('Access-Control-Allow-Headers','Content-Type');res.setHeader('Access-Control-Max-Age','600');res.writeHead(204);res.end();return;}
-   if(req.method!=='POST')return reply(404,{error:'Not found'});
-   if(!fromSite)return reply(403,{error:'Reports are filed from the website'});
-   res.setHeader('Access-Control-Allow-Origin',req.headers.origin);res.setHeader('Vary','Origin');
-   if(req.headers['content-type']?.split(';')[0]!=='application/json')return reply(415,{error:'JSON required'});
-   const forwarded=clientIpHeader&&req.headers[clientIpHeader],ip=(typeof forwarded==='string'&&forwarded.split(',')[0].trim())||req.socket.remoteAddress||'unknown',now=clock();
-   for(const [key,v] of voteRates)if(now-v.start>60000)voteRates.delete(key);
-   if(voteRates.size>10000)return reply(503,{error:'Temporarily busy'});
-   const rate=voteRates.get(ip)||{start:now,count:0};rate.count++;voteRates.set(ip,rate);if(rate.count>30)return reply(429,{error:'Slow down'});
-   const chunks=[];let size=0;
-   try{for await(const chunk of req){size+=chunk.length;if(size>256){reply(413,{error:'Body too large'});req.destroy();return;}chunks.push(chunk);}
-    let body;try{body=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw new VoteError('Invalid JSON');}
-    const summary=store.votes.submit(body,ip);votesCached=summary;votesCachedAt=clock();return reply(200,summary);
-   }catch(error){if(!res.headersSent)reply(error instanceof VoteError?error.status:500,{error:error instanceof VoteError?error.message:'Unable to file the report'});return;}
-  }
+  if(req.method==='GET'&&pathname==='/api/limit-signal'){try{return reply(200,await signal.get());}catch{return reply(200,{schema:1,generatedAt:clock(),minStated:0,providers:{claude:null,codex:null}});}}
   if(req.method==='GET'&&pathname==='/health')return reply(200,{ok:true});
   if(req.method==='GET'&&staticDirectory){
    let decoded;try{decoded=decodeURIComponent(pathname);}catch{return reply(400,{error:'Invalid path'});}

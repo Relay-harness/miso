@@ -1,4 +1,3 @@
-import {LimitVotes} from './limit-votes.mjs';
 import {DatabaseSync} from 'node:sqlite';
 import {createHash,createPublicKey,verify} from 'node:crypto';
 import {computeMembers} from './pulse.mjs';
@@ -46,7 +45,8 @@ export class SignalStore{
  constructor(path,{minCohort=5,clock=()=>Date.now()}={}){if(!Number.isInteger(minCohort)||minCohort<5)throw new Error('Minimum cohort must be at least 5');this.min=minCohort;this.clock=clock;this.db=new DatabaseSync(path);this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA secure_delete=ON; CREATE TABLE IF NOT EXISTS observations(install TEXT NOT NULL,provider TEXT NOT NULL,plan TEXT NOT NULL,kind TEXT NOT NULL,observed INTEGER NOT NULL,used INTEGER NOT NULL,reset INTEGER NOT NULL,received INTEGER NOT NULL,series TEXT NOT NULL,PRIMARY KEY(install,provider,kind,observed)); CREATE INDEX IF NOT EXISTS fresh ON observations(observed);CREATE TABLE IF NOT EXISTS nonces(install TEXT NOT NULL,nonce TEXT NOT NULL,received INTEGER NOT NULL,PRIMARY KEY(install,nonce));CREATE TABLE IF NOT EXISTS revoked(install TEXT PRIMARY KEY,until_time INTEGER NOT NULL);CREATE TABLE IF NOT EXISTS allowance_intervals(install TEXT NOT NULL,provider TEXT NOT NULL,kind TEXT NOT NULL,start_at INTEGER NOT NULL,end_at INTEGER NOT NULL,received INTEGER NOT NULL,document TEXT NOT NULL,PRIMARY KEY(install,provider,kind,start_at));CREATE INDEX IF NOT EXISTS allowance_recent ON allowance_intervals(end_at);CREATE TABLE IF NOT EXISTS members(install TEXT PRIMARY KEY,first_seen INTEGER NOT NULL,last_seen INTEGER NOT NULL);CREATE TABLE IF NOT EXISTS member_latest(install TEXT NOT NULL,provider TEXT NOT NULL,kind TEXT NOT NULL,used INTEGER NOT NULL,reset INTEGER NOT NULL,observed INTEGER NOT NULL,PRIMARY KEY(install,provider,kind));`);
  // Members are everyone who has ever reported. Seed them once from readings already stored.
  this.db.exec(`INSERT OR IGNORE INTO members SELECT install,MIN(observed),MAX(observed) FROM observations GROUP BY install;INSERT OR IGNORE INTO member_latest SELECT o.install,o.provider,o.kind,o.used,o.reset,o.observed FROM observations o JOIN (SELECT install,provider,kind,MAX(observed) AS m FROM observations GROUP BY install,provider,kind) x ON o.install=x.install AND o.provider=x.provider AND o.kind=x.kind AND o.observed=x.m;`);
- this.votes=new LimitVotes(this.db,clock);
+ // Visitor limit reports were removed. Delete any that were filed, with their hashes and salt.
+ this.db.exec('DROP TABLE IF EXISTS limit_votes;DROP TABLE IF EXISTS limit_vote_meta;');
  this.lastPruned=0;}
  close(){this.db.close();}
  prune(){const now=this.clock();if(now-this.lastPruned<60000)return;this.db.prepare('DELETE FROM observations WHERE observed < ?').run(now-RETENTION);this.db.prepare('DELETE FROM allowance_intervals WHERE end_at < ?').run(now-ALLOWANCE_RETENTION);this.db.prepare('DELETE FROM nonces WHERE received < ?').run(now-RETENTION);this.db.prepare('DELETE FROM revoked WHERE until_time < ?').run(now);this.lastPruned=now;}

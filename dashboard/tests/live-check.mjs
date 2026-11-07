@@ -2,7 +2,7 @@ import {chromium} from 'playwright';
 const browser=await chromium.launch({headless:true});
 try{
  const page=await browser.newPage({viewport:{width:1440,height:1050},colorScheme:'light'});
- await page.route('**/api/limit-reports',r=>r.fulfill({json:{schema:1,generatedAt:Date.now(),windowDays:7,minReports:5,providers:{claude:{reports:0,percent:0},codex:{reports:0,percent:0}}}}));await page.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));
+ await page.route('**/api/limit-signal',r=>r.fulfill({json:{schema:1,generatedAt:Date.now(),minStated:3,providers:{claude:{posts:0,stated:0,percent:0,sources:['GitHub','Hacker News']},codex:{posts:0,stated:0,percent:0,sources:['GitHub','Hacker News']}}}}));await page.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));
  await page.goto(process.env.DASHBOARD_URL||'http://127.0.0.1:8787');
  await page.waitForFunction(()=>!document.querySelector('.status-label')?.textContent.includes('Updating'));
  console.log('LIVE ALLOWANCE:',await page.locator('.quota-board').innerText());
