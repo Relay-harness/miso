@@ -19,6 +19,7 @@ Miso is made to be quiet and respectful. No analytics, keyboard recording, feedi
 - OpenAI **Codex** and Claude by default; add Gemini or Grok with **+**.
 - Full-width vertical bars show **percentage used**. At 82% used the bar is 82% full.
 - Shows the earliest calibrated pre-reset exhaustion estimate. It needs matching account/window/reset identity and at least three fresh measurements, normally about ten minutes. Missing data is never invented.
+- At 95% of a 5-hour or weekly limit, Miso shows one notification per window suggesting [Relay](https://relayevals.com), with a button that opens relayevals.com. Turn it off in System Settings, Notifications, Miso.
 - Click the cat to wake it and open usage. Close the popover and it naps after about two seconds. Manual wake/nap remains an override. Native light/dark mode and Reduce Motion are respected.
 - Optional local input/output token statistics live on a separate Stats view. These are not subscription messages or allowance denominators.
 
@@ -49,7 +50,7 @@ Quit any older Relay Cat copy, then open **Miso** from Applications. The officia
 
 **Homebrew makes installation easier, not Apple-verified. This preview is ad-hoc signed and not notarized.** If macOS blocks the first launch with an unverified-developer warning, review the source/release first. Only if you trust it: try opening the app once, then choose **System Settings → Privacy & Security → Open Anyway**, authenticate if asked, and confirm **Open**. Control-click → Open alone may not work on current macOS. Do not override a malware/“will damage your computer” alert. Never disable Gatekeeper system-wide. The cask does not remove quarantine.
 
-See [Homebrew installation, updates and troubleshooting](docs/HOMEBREW.md), or [download the v1.9.8 ZIP and checksum](https://github.com/Relay-harness/miso/releases/tag/v1.9.8).
+See [Homebrew installation, updates and troubleshooting](docs/HOMEBREW.md), or [download the v1.9.9 ZIP and checksum](https://github.com/Relay-harness/miso/releases/tag/v1.9.9).
 
 ## Build from a clean checkout
 

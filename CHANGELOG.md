@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.9.9 - A heads-up before your limit runs out
 
+- Mac app: when a 5-hour or weekly limit reaches 95%, Miso shows one notification per window suggesting Relay, with an Open relayevals.com button. macOS asks for notification permission the first time. Nothing is sent anywhere.
 - Website: the collector reads public GitHub and Hacker News posts about limits, and each bar shows Normal or a stated change such as −30%. A change only shows once 3 separate posts state one in the past 7 days. An announced change from the past 7 days, or Miso's own measurement, takes priority. This is what posts say, not a measurement.
 
 ## 1.9.8 - Know when Miso is watching

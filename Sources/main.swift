@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     private lazy var sharing = CommunitySharing(defaults: settings, identityStore: CommandLine.arguments.contains("--verify-quota-menu") ?
         CommunityIdentityStore(file: FileManager.default.temporaryDirectory.appendingPathComponent("miso-ui-" + UUID().uuidString + "/identity.key"), legacy: { nil }) : nil)
     private lazy var calibration = CalibrationCoordinator(defaults: settings)
+    private var limitNotifier: LimitNudgeNotifier?
     private let popover = NSPopover()
     private var dashboardHost: NSViewController?
     private var pendingPopoverCheck: (@MainActor @Sendable () -> Void)?
@@ -67,7 +68,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
         sharing.onChange = { [weak self] in self?.syncConnectionStatus() }
         syncConnectionStatus()
-        quotas.onFreshReading = { [weak self] reading in self?.sharing.submit(reading) }
+        quotas.onFreshReading = { [weak self] reading in self?.sharing.submit(reading); self?.suggestRelayIfNearLimit(reading) }
+        // Set up early so a click on an earlier notice still opens relayevals.com after a relaunch.
+        if !CommandLine.arguments.contains("--verify-quota-menu") { limitNotifier = LimitNudgeNotifier() }
         if !CommandLine.arguments.contains("--verify-quota-menu") { enableSharingByDefault(); enableOpenAtLoginByDefault() }
         if !CommandLine.arguments.contains("--verify-quota-menu") { activity.refreshIfDue(interval: 0) { [weak self] active in self?.providersChanged(active) } }
         if !CommandLine.arguments.contains("--verify-quota-menu") { MisoUpdateChecker.check { [weak self] result in self?.handleUpdateResult(result, manual: false) } }
@@ -99,6 +102,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     private func providersChanged(_ active: Set<QuotaProvider>) {
         if active.isEmpty { catRest.providersStopped() }
         quotas.setActiveProviders(active); update()
+    }
+    /// At 95% of a 5-hour or weekly window, suggest Relay once for that window.
+    private func suggestRelayIfNearLimit(_ reading: QuotaReading) {
+        guard let limitNotifier else { return }
+        let sent = settings.dictionary(forKey: LimitNudge.defaultsKey) as? [String: Double] ?? [:]
+        let result = LimitNudge.evaluate(reading, sent: sent, now: Date())
+        settings.set(result.sent, forKey: LimitNudge.defaultsKey)
+        if let notice = result.notice { limitNotifier.post(notice) }
     }
     /// Miso can only notice Claude or Codex while it is open, so it opens at login. Applied once; the checkbox decides after that.
     private func enableOpenAtLoginByDefault() {
