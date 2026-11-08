@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import CoreGraphics
 var checks = 0
 func check(_ condition: @autoclosure () -> Bool, _ name: String) {
@@ -293,17 +294,25 @@ let weeklyWindow = { (used: Double) in QuotaWindow(title: "Weekly", used: used, 
 check(LimitNudge.evaluate(nudgeReading([fiveHour(94.9)]), sent: [:], now: qnow).notice == nil, "no Relay suggestion below 95%")
 let firstNudge = LimitNudge.evaluate(nudgeReading([fiveHour(96.4)]), sent: [:], now: qnow)
 check(firstNudge.notice?.title == "Claude 5-hour limit at 96%", "95% of the 5-hour window names the provider and window")
-check(firstNudge.notice?.body.contains("relayevals.com") == true && LimitNudge.url.absoluteString == "https://relayevals.com", "the notice points to relayevals.com")
+check(firstNudge.notice?.line == "I see your Claude 5-hour limit is almost used up." && firstNudge.notice?.url.absoluteString == "https://relayevals.com/resume?from=miso", "Miso says which limit, and the button goes to the resume page")
 check(LimitNudge.evaluate(nudgeReading([fiveHour(99)]), sent: firstNudge.sent, now: qnow.addingTimeInterval(600)).notice == nil, "only once per 5-hour window")
 check(LimitNudge.evaluate(nudgeReading([QuotaWindow(title: "5-hour", used: 97, resetsAt: nudgeReset.addingTimeInterval(18000), key: "primary", durationMinutes: 300)], at: nudgeReset.addingTimeInterval(60)), sent: firstNudge.sent, now: nudgeReset.addingTimeInterval(60)).notice != nil, "suggested again after the window resets")
 let weeklyNudge = LimitNudge.evaluate(nudgeReading([fiveHour(40), weeklyWindow(100)], provider: .codex), sent: firstNudge.sent, now: qnow)
-check(weeklyNudge.notice?.title == "Codex weekly limit reached", "a reached weekly limit is named, per provider")
+check(weeklyNudge.notice?.title == "Codex weekly limit reached" && weeklyNudge.notice?.line == "I see your Codex weekly limit is used up.", "a reached weekly limit is named, per provider")
 let both = LimitNudge.evaluate(nudgeReading([fiveHour(97), weeklyWindow(98)]), sent: [:], now: qnow)
 check(both.notice?.title == "Claude weekly limit at 98%" && both.sent.count == 2, "two windows at once give one notice and are both remembered")
 check(LimitNudge.evaluate(nudgeReading([fiveHour(99)], lastKnown: true), sent: [:], now: qnow).notice == nil, "a cached reading never triggers it")
 check(LimitNudge.evaluate(nudgeReading([fiveHour(99)], at: qnow.addingTimeInterval(-3600)), sent: [:], now: qnow).notice == nil, "a stale reading never triggers it")
 check(LimitNudge.evaluate(nudgeReading([QuotaWindow(title: "Fable", used: 99, resetsAt: nudgeWeek, key: "tertiary", durationMinutes: 43200)]), sent: [:], now: qnow).notice == nil, "only 5-hour and weekly windows count")
 check(LimitNudge.evaluate(nudgeReading([fiveHour(.nan)]), sent: [:], now: qnow).notice == nil, "a broken reading never triggers it")
+for frame in 0..<6 {
+    let art = CatArt.greeting(frame: frame, palette: frame % 3)
+    check(art.size == NSSize(width: 30, height: 26) && art.accessibilityDescription == "Miso smiling and waving", "waving Miso frame \(frame) draws at its pixel size")
+}
+for frame in 0..<5 {
+    let wave = CatArt.menuWave(frame: frame, palette: frame % 3)
+    check(wave.size == NSSize(width: 30, height: 22) && wave.accessibilityDescription == "Miso waving at you", "menu-bar wave frame \(frame) fits the menu bar height")
+}
 print("\(checks) used-quota core checks passed")
 
 check(MisoUpdateChecker.newer("1.9.1", than: "1.9.0"), "newer Miso release is detected")

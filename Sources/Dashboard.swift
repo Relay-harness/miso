@@ -16,6 +16,8 @@ final class DashboardState: ObservableObject {
     @Published var showingStats = false { didSet { onLayoutChange?() } }
     /// Set when GitHub has a newer release; shows an Update button in the popover footer.
     @Published var updateVersion: String?
+    /// Shown in place of usage, at the same size, after the person clicks the waving cat.
+    @Published var invite: LimitNudge.Notice?
     var onLayoutChange: (() -> Void)?
     var hasQuota: Bool { isFresh && lanes().contains { $0.1.map { !$0.expired(at: now) } == true } }
     var expandedLayout: Bool { showingStats || connected }
@@ -111,6 +113,8 @@ struct DashboardActions {
     var tokens: () -> Void
     var settings: () -> Void
     var close: () -> Void
+    var openInvite: () -> Void = {}
+    var dismissInvite: () -> Void = {}
     var signIn: () -> Void = {}
 }
 
@@ -133,6 +137,21 @@ struct RelayCatDashboard: View {
 
     var body: some View {
         let _ = model.revision
+        Group {
+            if let invite = model.invite {
+                RelayInviteContent(notice: invite, palette: UserDefaults.standard.integer(forKey: "palette"), accent: accent, muted: muted,
+                                   open: actions.openInvite, dismiss: actions.dismissInvite)
+            } else { usage }
+        }
+        .padding(.horizontal, 18)
+        .frame(width: panelSize.width, height: panelSize.height)
+        .background(canvas).tint(accent)
+        .onExitCommand(perform: actions.close)
+        .onReceive(Timer.publish(every: 15, on: .main, in: .common).autoconnect()) { _ in if !model.preview { model.sync() } }
+        .accessibilityElement(children: .contain).accessibilityLabel(model.invite == nil ? "Miso usage" : "Miso")
+    }
+
+    private var usage: some View {
         VStack(spacing: 0) {
             if model.showingStats { activityHeader } else { navigation }
             ScrollView {
@@ -153,12 +172,6 @@ struct RelayCatDashboard: View {
             }
             footer
         }
-        .padding(.horizontal, 18)
-        .frame(width: panelSize.width, height: panelSize.height)
-        .background(canvas).tint(accent)
-        .onExitCommand(perform: actions.close)
-        .onReceive(Timer.publish(every: 15, on: .main, in: .common).autoconnect()) { _ in if !model.preview { model.sync() } }
-        .accessibilityElement(children: .contain).accessibilityLabel("Miso usage")
     }
 
     private var navigation: some View {

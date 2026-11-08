@@ -1,15 +1,18 @@
 import Foundation
 
-/// When a 5-hour or weekly window reaches 95%, suggest Relay once for that window, until it resets.
+/// When a 5-hour or weekly window reaches 95%, Miso tells you about Relay once for that window, until it resets.
 enum LimitNudge {
     static let threshold = 95.0
-    static let url = URL(string: "https://relayevals.com")!
+    /// The resume page gives the one-line command, never a pricing page.
+    static let url = URL(string: "https://relayevals.com/resume?from=miso")!
     static let defaultsKey = "limitNudgeSent"
 
     struct Notice: Equatable {
         let id: String
         let title: String
-        let body: String
+        /// What Miso says first, in plain words, e.g. "I see your Claude 5-hour limit is almost used up."
+        let line: String
+        let url: URL
     }
 
     /// `sent` maps provider and window to the reset time already notified. Returns at most one notice for the reading,
@@ -28,10 +31,12 @@ enum LimitNudge {
             next[key] = (window.resetsAt ?? now.addingTimeInterval(Double(window.durationMinutes ?? 300) * 60)).timeIntervalSince1970
         }
         guard let top = due.max(by: { $0.window.used < $1.window.used }) else { return (nil, next) }
-        let used = top.window.used >= 100 ? "reached" : "at \(Int(top.window.used.rounded(.down)))%"
+        let reached = top.window.used >= 100
+        let used = reached ? "reached" : "at \(Int(top.window.used.rounded(.down)))%"
         let provider = reading.provider == .codex ? "Codex" : reading.provider.name
         return (Notice(id: "limit-\(top.key)-\(Int(next[top.key]!))",
                        title: "\(provider) \(top.label) limit \(used)",
-                       body: "Want to keep coding? Install Relay from relayevals.com."), next)
+                       line: "I see your \(provider) \(top.label) limit is \(reached ? "used up" : "almost used up").",
+                       url: url), next)
     }
 }

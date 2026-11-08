@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.10 - Miso has something to tell you
+
+- Mac app: at 95% of a 5-hour or weekly limit, the menu-bar Miso turns to face you and waves, and a small "click me, hooman" tag appears under it for a few seconds. Nothing opens by itself. Clicking Miso shows a short message from Miso in the usual usage window, at the same size, with Finish in Relay Cloud Sandbox (relayevals.com/resume) and a small Dismiss link. Once per window, no notification permission, and waving stops when Reduce Motion is on.
+
 ## 1.9.9 - A heads-up before your limit runs out
 
 - Mac app: when a 5-hour or weekly limit reaches 95%, Miso shows one notification per window suggesting Relay, with an Open relayevals.com button. macOS asks for notification permission the first time. Nothing is sent anywhere.

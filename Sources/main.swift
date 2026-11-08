@@ -27,7 +27,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     private lazy var sharing = CommunitySharing(defaults: settings, identityStore: CommandLine.arguments.contains("--verify-quota-menu") ?
         CommunityIdentityStore(file: FileManager.default.temporaryDirectory.appendingPathComponent("miso-ui-" + UUID().uuidString + "/identity.key"), legacy: { nil }) : nil)
     private lazy var calibration = CalibrationCoordinator(defaults: settings)
-    private var limitNotifier: LimitNudgeNotifier?
+    private let clickHint = ClickMeHint()
+    /// Set at 95%: the menu-bar cat turns to face you and waves until you click it.
+    private var pendingInvite: LimitNudge.Notice?
     private let popover = NSPopover()
     private var dashboardHost: NSViewController?
     private var pendingPopoverCheck: (@MainActor @Sendable () -> Void)?
@@ -69,13 +71,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         sharing.onChange = { [weak self] in self?.syncConnectionStatus() }
         syncConnectionStatus()
         quotas.onFreshReading = { [weak self] reading in self?.sharing.submit(reading); self?.suggestRelayIfNearLimit(reading) }
-        // Set up early so a click on an earlier notice still opens relayevals.com after a relaunch.
-        if !CommandLine.arguments.contains("--verify-quota-menu") { limitNotifier = LimitNudgeNotifier() }
         if !CommandLine.arguments.contains("--verify-quota-menu") { enableSharingByDefault(); enableOpenAtLoginByDefault() }
         if !CommandLine.arguments.contains("--verify-quota-menu") { activity.refreshIfDue(interval: 0) { [weak self] active in self?.providersChanged(active) } }
         if !CommandLine.arguments.contains("--verify-quota-menu") { MisoUpdateChecker.check { [weak self] result in self?.handleUpdateResult(result, manual: false) } }
         quotas.refreshIfDue()
         update()
+        // Shows the bubble with a sample reading, for design review.
+        if CommandLine.arguments.contains("--preview-relay-invite") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.showRelayInvite(LimitNudge.Notice(id: "preview", title: "Claude 5-hour limit at 96%", line: "I see your Claude 5-hour limit is almost used up.", url: LimitNudge.url)) }
+        }
         if CommandLine.arguments.contains("--verify-quota-menu") {
             // A shown-window test must run after AppKit completes launch and attaches the status item.
             DispatchQueue.main.async { self.verifyQuotaMenu(menu) }
@@ -103,13 +107,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         if active.isEmpty { catRest.providersStopped() }
         quotas.setActiveProviders(active); update()
     }
-    /// At 95% of a 5-hour or weekly window, suggest Relay once for that window.
+    /// At 95% of a 5-hour or weekly window, Miso waves and tells you about Relay, once for that window.
     private func suggestRelayIfNearLimit(_ reading: QuotaReading) {
-        guard let limitNotifier else { return }
+        guard !CommandLine.arguments.contains("--verify-quota-menu") else { return }
         let sent = settings.dictionary(forKey: LimitNudge.defaultsKey) as? [String: Double] ?? [:]
         let result = LimitNudge.evaluate(reading, sent: sent, now: Date())
         settings.set(result.sent, forKey: LimitNudge.defaultsKey)
-        if let notice = result.notice { limitNotifier.post(notice) }
+        if let notice = result.notice { showRelayInvite(notice) }
+    }
+    /// Nothing opens by itself: Miso waves, a small tag says "click me, hooman", and the message shows only after a click.
+    private func showRelayInvite(_ notice: LimitNudge.Notice) {
+        pendingInvite = notice
+        lastImageKey = ""
+        update()
+        let anchor = status.button.flatMap { button in button.window.map { $0.convertToScreen(button.convert(button.bounds, to: nil)) } }
+        clickHint.show(under: anchor)
     }
     /// Miso can only notice Claude or Codex while it is open, so it opens at login. Applied once; the checkbox decides after that.
     private func enableOpenAtLoginByDefault() {
@@ -149,10 +161,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let motion = animate && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         let activeFrame = motion ? frame : 0
         let asleep = sleeping
-        let key = "\(activeFrame)-\(asleep)-\(palette)"
-        if lastImageKey != key {
-            status.button?.image = CatArt.image(frame: activeFrame, sleeping: asleep, palette: palette)
-            lastImageKey = key
+        if pendingInvite != nil {
+            let wave = motion ? frame % 4 : 4
+            let key = "wave-\(wave)-\(palette)"
+            if lastImageKey != key { status.button?.image = CatArt.menuWave(frame: wave, palette: palette); lastImageKey = key }
+        } else {
+            let key = "\(activeFrame)-\(asleep)-\(palette)"
+            if lastImageKey != key {
+                status.button?.image = CatArt.image(frame: activeFrame, sleeping: asleep, palette: palette)
+                lastImageKey = key
+            }
         }
         let focusText = clock.isRunning ? " " + (clock.isPaused ? "Ⅱ " : "") + clock.label(at: now) : ""
         status.button?.title = focusText + quotas.barText(at: now)
@@ -287,6 +305,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             tokens: { [weak self] in self?.toggleTokenStats() },
             settings: { [weak self] in self?.showSettings() },
             close: { [weak self] in self?.popover.performClose(nil) },
+            openInvite: { [weak self] in
+                guard let self, let url = self.dashboard.invite?.url else { return }
+                NSWorkspace.shared.open(url); self.dashboard.invite = nil; self.popover.performClose(nil)
+            },
+            dismissInvite: { [weak self] in self?.dashboard.invite = nil },
             signIn: { [weak self] in
                 guard let self else { return }
                 let item = NSMenuItem(); item.representedObject = self.dashboard.selected.rawValue
@@ -320,6 +343,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     @objc private func toggleDashboard() {
         if NSApp.currentEvent?.type == .rightMouseUp { showSettings(); return }
         if popover.isShown { popover.performClose(nil); return }
+        if let invite = pendingInvite {
+            dashboard.invite = invite; pendingInvite = nil
+            clickHint.close(); lastImageKey = ""; update()
+        }
         dashboard.showingStats = false
         dashboard.selected = quotas.displayedProvider
         dashboard.sync()
@@ -368,6 +395,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
 
     func popoverDidClose(_ notification: Notification) {
+        dashboard.invite = nil
         catRest.closed(at: Date()); update()
     }
 
