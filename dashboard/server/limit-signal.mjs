@@ -28,6 +28,19 @@ export function statedChange(text){
  }
  return null;
 }
+const STORY_TOPIC=/\b(?:limits?|quotas?|allowance|meter|usage)\b/i;
+const STORY_SIGNAL=/\b(?:drain\w*|exhaust\w*|deplet\w*|gone|consum\w*|burn\w*|faster|reached|drops?|removes?|merg\w*|cuts?|doubl\w*|halv\w*|reduc\w*|raised?|increase[sd]?)\b|\d\s?%|\d(?:-\d+)?\s?[x×](?![a-z])/i;
+const NOT_A_STORY=/^\s*\[?(?:feature|docs?|question)\b|feature request|github api|api quota|rate_limit_error|context (?:window|limit)|\bwhen\b.{0,40}\breached\b/i;
+export const LATEST_COUNT=12;
+const MAX_TITLE=120;
+/** A headline fit for the "What folks are saying" list, or null when the title isn't about using up or changing a limit. */
+export function storyTitle(raw){
+ if(typeof raw!=='string'||NOT_A_STORY.test(raw))return null;
+ const title=raw.replace(/^(?:\[[^\]]{1,40}\]\s*)+/,'').replace(/^(?:Ask|Tell) HN:\s*/i,'').replace(/\s+/g,' ').trim();
+ if(!title||!STORY_TOPIC.test(title)||!STORY_SIGNAL.test(title))return null;
+ return title.length<=MAX_TITLE?title:`${title.slice(0,MAX_TITLE).replace(/\s+\S*$/,'')}…`;
+}
+const tally=n=>Number.isSafeInteger(n)&&n>=0?n:0;
 const median=v=>{const s=[...v].sort((a,b)=>a-b),m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;};
 /** One post, one figure. A change only shows once several separate posts state one, so one post cannot set the bar. */
 export function summarize(posts,now,sources){
@@ -51,7 +64,10 @@ export function createSignal({fetcher=fetch,clock=()=>Date.now()}={}){
   for(let page=1;page<=MAX_PAGES;page++){
    const body=await json(githubSearchURL(provider,now,page),{Accept:'application/vnd.github+json','User-Agent':'throttleindex'});
    if(!Array.isArray(body.items))throw new Error('Unexpected GitHub response');
-   for(const item of body.items)posts.push({at:Date.parse(item?.created_at),change:statedChange(`${item?.title}.\n${item?.body||''}`)});
+   for(const item of body.items){
+    const at=Date.parse(item?.created_at),title=item?.user?.type==='Bot'||!Number.isSafeInteger(item?.number)?null:storyTitle(item?.title);
+    posts.push({at,change:statedChange(`${item?.title}.\n${item?.body||''}`),story:title&&{source:'GitHub',url:`https://github.com/${REPOS[provider]}/issues/${item.number}`,title,author:String(item?.user?.login||'unknown').slice(0,80),at,comments:tally(item?.comments),points:tally(item?.reactions?.total_count)}});
+   }
    if(posts.length>=body.total_count||!body.items.length)break;
   }
   return posts;
@@ -64,7 +80,9 @@ export function createSignal({fetcher=fetch,clock=()=>Date.now()}={}){
    for(const hit of body.hits){
     if(typeof hit?.objectID!=='string'||/^(?:show|launch) hn:/i.test(hit.title||''))continue;
     const text=`${hit.title||''}.\n${plain(hit.story_text)}`;
-    if(NAMES[provider].test(text))seen.set(hit.objectID,{at:hit.created_at_i*1000,change:statedChange(text)});
+    if(!NAMES[provider].test(text))continue;
+    const at=hit.created_at_i*1000,title=/^\d{1,12}$/.test(hit.objectID)&&NAMES[provider].test(hit.title||'')?storyTitle(hit.title):null;
+    seen.set(hit.objectID,{at,change:statedChange(text),story:title&&{source:'Hacker News',url:`https://news.ycombinator.com/item?id=${hit.objectID}`,title,author:String(hit.author||'unknown').slice(0,80),at,comments:tally(hit.num_comments),points:tally(hit.points)}});
    }
   }
   return [...seen.values()];
@@ -82,12 +100,14 @@ export function createSignal({fetcher=fetch,clock=()=>Date.now()}={}){
   refreshedAt=any?now:now-SIGNAL_TTL+RETRY_AFTER;
  })().finally(()=>{inflight=null;});
  const view=now=>{
-  const providers={};
+  const providers={},stories=new Map();
   for(const [provider,{github,hn}] of Object.entries(saved)){
-   const gh=github&&now-github.at<=SOURCE_MAX_AGE?github:null,news=hn&&now-hn.at<=SOURCE_MAX_AGE?hn:null;
-   providers[provider]=gh||news?summarize([...(gh?.posts??[]),...(news?.posts??[])],now,[...(gh?['GitHub']:[]),...(news?['Hacker News']:[])]):null;
+   const gh=github&&now-github.at<=SOURCE_MAX_AGE?github:null,news=hn&&now-hn.at<=SOURCE_MAX_AGE?hn:null,posts=[...(gh?.posts??[]),...(news?.posts??[])];
+   providers[provider]=gh||news?summarize(posts,now,[...(gh?['GitHub']:[]),...(news?['Hacker News']:[])]):null;
+   for(const {story} of posts)if(story&&Number.isFinite(story.at)&&story.at<=now+60000&&now-story.at<WEEK)stories.set(story.url,story);
   }
-  return {schema:1,generatedAt:now,minStated:MIN_STATED,providers};
+  const latest=[...stories.values()].sort((a,b)=>b.at-a.at||a.url.localeCompare(b.url)).slice(0,LATEST_COUNT);
+  return {schema:1,generatedAt:now,minStated:MIN_STATED,providers,latest};
  };
  return {async get(){const now=clock();if(!refreshedAt)await refresh();else if(now-refreshedAt>=SIGNAL_TTL)void refresh();return view(clock());}};
 }

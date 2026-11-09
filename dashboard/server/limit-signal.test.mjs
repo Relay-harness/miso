@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {statedChange,summarize,createSignal,SIGNAL_TTL,MIN_STATED,githubSearchURL} from './limit-signal.mjs';
+import {statedChange,summarize,createSignal,storyTitle,SIGNAL_TTL,MIN_STATED,LATEST_COUNT,githubSearchURL} from './limit-signal.mjs';
 import {createService} from './index.mjs';
 const NOW=Date.UTC(2026,10,7,12),DAY=86400000,ago=d=>NOW-d*DAY-3600000;
 const ok=body=>({ok:true,status:200,json:async()=>body});
@@ -36,6 +36,22 @@ test('a slow or failed source never moves the answer, until it has been gone a d
  let now=NOW;const n=net();const s=createSignal({fetcher:n.fetcher,clock:()=>now});const before=(await s.get()).providers.claude;
  n.state.hn=false;now+=SIGNAL_TTL;await s.get();await new Promise(r=>setTimeout(r,5));assert.deepEqual((await s.get()).providers.claude.sources,before.sources);
  now+=DAY;await s.get();await new Promise(r=>setTimeout(r,5));assert.deepEqual((await s.get()).providers.claude.sources,['GitHub']);
+});
+test('headlines keep real limit reports and drop feature requests and unrelated bugs',()=>{
+ for(const title of ['Anthropic Removes Daily Usage Limits','Claude Ultra ($200): 20x -> 10x Pro usage every week','Extra usage credits ($10 reload) depleted in ~15 min under light use'])assert.equal(storyTitle(title),title);
+ assert.equal(storyTitle('[BUG] [Windows] Max weekly meter drains 5-7x faster than last week'),'Max weekly meter drains 5-7x faster than last week');
+ assert.equal(storyTitle('Tell HN: Claude weekly limit gone in a day'),'Claude weekly limit gone in a day');
+ for(const title of ['[FEATURE] Usage screen: add a bar under each usage bar 100%','Feature Request: Usage-Limit Awareness 50%','[macOS] Queued Messages Are Automatically Sent When Usage Limit Is Reached','[Desktop] PR monitor exhausts the GitHub API quota','[BUG] Desktop goes blank after switching tabs','Claude usage credits purchased after Dec 7 will expire',null])assert.equal(storyTitle(title),null,String(title));
+ assert.ok(storyTitle(`Weekly limit gone ${'word '.repeat(60)}`).length<=121);
+});
+test('the latest list is this week only, newest first, de-duplicated and capped',async()=>{
+ const issue=(number,d,title,other={})=>({number,created_at:new Date(ago(d)).toISOString(),title,body:'',comments:2,reactions:{total_count:1},user:{login:`user${number}`,type:'User'},...other});
+ const items=[issue(1,3,'[BUG] Weekly limit drained in a day'),issue(2,0.5,'Max weekly meter drains 5x faster'),issue(3,1,'Weekly limit gone',{user:{login:'bot',type:'Bot'}}),issue(4,1,'[BUG] Desktop goes blank'),issue(5,8,'Weekly limit exhausted long ago')];
+ const n=net(items);const latest=(await createSignal({fetcher:n.fetcher,clock:()=>NOW}).get()).latest;
+ assert.deepEqual(latest.map(s=>s.url),['https://github.com/anthropics/claude-code/issues/2','https://news.ycombinator.com/item?id=1','https://github.com/anthropics/claude-code/issues/1'].sort((a,b)=>latest.findIndex(s=>s.url===a)-latest.findIndex(s=>s.url===b)));
+ assert.deepEqual(latest.map(s=>s.at),[...latest.map(s=>s.at)].sort((a,b)=>b-a));
+ assert.deepEqual(latest[0],{source:'GitHub',url:'https://github.com/anthropics/claude-code/issues/2',title:'Max weekly meter drains 5x faster',author:'user2',at:ago(0.5),comments:2,points:1});
+ const many=net(Array.from({length:30},(_,i)=>issue(i+10,1,'Weekly limit drained in a day')));assert.equal((await createSignal({fetcher:many.fetcher,clock:()=>NOW}).get()).latest.length,LATEST_COUNT);
 });
 test('no data stays empty, not Normal, and retries soon',async()=>{
  let now=NOW;const n=net();n.state.github=false;n.state.hn=false;const s=createSignal({fetcher:n.fetcher,clock:()=>now});assert.deepEqual((await s.get()).providers,{claude:null,codex:null});

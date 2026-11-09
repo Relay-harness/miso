@@ -12,6 +12,15 @@ export function isSignalResponse(value:unknown):value is SignalResponse {
  const v=value as SignalResponse;
  return !!v&&typeof v==='object'&&v.schema===1&&Number.isFinite(v.generatedAt)&&!!v.providers&&valid(v.providers.claude)&&valid(v.providers.codex);
 }
+export type LatestReport={source:'GitHub'|'Hacker News';url:string;title:string;author:string;at:number;comments:number;points:number};
+const REPORT_URL=/^https:\/\/(?:github\.com\/(?:anthropics\/claude-code|openai\/codex)\/issues\/\d+|news\.ycombinator\.com\/item\?id=\d+)$/;
+const WEEK=7*86400000;
+/** The newest reports the collector found this week, newest first. Null means this response carries no list at all. */
+export function latestReports(value:unknown,now=Date.now()):LatestReport[]|null {
+ const list=(value as {latest?:unknown})?.latest;
+ if(!Array.isArray(list))return null;
+ return (list as LatestReport[]).filter(r=>!!r&&(r.source==='GitHub'||r.source==='Hacker News')&&typeof r.url==='string'&&REPORT_URL.test(r.url)&&typeof r.title==='string'&&r.title.length>0&&typeof r.author==='string'&&r.author.length>0&&Number.isFinite(r.at)&&now-r.at<WEEK&&r.at<=now+60000&&count(r.comments)&&count(r.points)).sort((a,b)=>b.at-a.at);
+}
 /** The bar is full at normal or above, and a cut empties it by that share. */
 export function signalGauge(label:string,s:ProviderSignal):{figure:string;filled:number;tone:'decreased'|'increased'|'neutral';headline:string;who:string} {
  const who=`${s.posts.toLocaleString()} ${s.posts===1?'post':'posts'} checked this week`;

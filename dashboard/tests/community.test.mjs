@@ -24,17 +24,32 @@ test('dashboard preview leads with concrete comparisons and excludes popular gen
  assert.equal(await p.locator('.internet-brief li').count(),3);
  for(const title of await p.locator('.internet-brief li>a').allTextContents())assert.match(title,/session limit reduced from 80 to/);
  assert.equal(await p.locator('.internet-brief').getByText(/Building with/).count(),0);
- assert.match(await p.locator('.internet-brief li>a').first().getAttribute('title'),/by neighbor · Before\/after comparison/);
+ assert.match(await p.locator('.internet-brief li>a').first().getAttribute('title'),/by neighbor on Hacker News/);
  assert.equal(await p.locator('.brief-report-context,.internet-brief .brief-searches').count(),0);
  assert.match(await p.locator('.post-who').first().innerText(),/Hacker News/);assert.equal(await p.locator('.post .avatar').count(),3);
  assert.match(await p.locator('.brief-state').textContent(),/unverified/);assert.ok(await p.getByRole('heading',{name:'What folks are saying'}).isVisible());
  for(const link of await p.locator('.internet-brief li>a').all())assert.match(await link.getAttribute('href'),/^https:\/\/news\.ycombinator\.com\/item\?id=\d+$/);
  await p.close();
 });
+test('the preview shows the collector’s newest reports and links to their source',async()=>{
+ const p=await browser.newPage();await mock(p);const t=Date.now(),hour=3600000,base={comments:2,points:1};
+ const latest=[{source:'Hacker News',url:'https://news.ycombinator.com/item?id=77',title:'Older Claude weekly limit cut',author:'bob',at:t-48*hour,...base},{source:'GitHub',url:'https://github.com/anthropics/claude-code/issues/9',title:'Weekly meter drains 5x faster',author:'alice',at:t-2*hour,...base},{source:'GitHub',url:'https://github.com/openai/codex/issues/8',title:'Codex quota gone in an hour',author:'carol',at:t-5*hour,...base},{source:'GitHub',url:'https://evil.example/issues/1',title:'Bad link weekly limit gone',author:'mallory',at:t-hour,...base},{source:'GitHub',url:'https://github.com/openai/codex/issues/7',title:'Old weekly limit gone',author:'dave',at:t-8*24*hour,...base}];
+ await p.route('**/api/limit-signal',r=>r.fulfill({json:{schema:1,generatedAt:t,minStated:3,providers:{claude:null,codex:null},latest}}));
+ await p.goto(url);await p.locator('.internet-brief li').first().waitFor();
+ assert.deepEqual(await p.locator('.internet-brief li>a').allTextContents(),['Weekly meter drains 5x faster','Codex quota gone in an hour','Older Claude weekly limit cut']);
+ assert.match(await p.locator('.post-who').first().innerText(),/GitHub · 2h/);
+ assert.equal(await p.locator('.internet-brief li>a').first().getAttribute('href'),'https://github.com/anthropics/claude-code/issues/9');
+ await p.close();
+});
+test('an empty collector list says so instead of showing older Hacker News posts',async()=>{
+ const p=await browser.newPage();await mock(p);
+ await p.route('**/api/limit-signal',r=>r.fulfill({json:{schema:1,generatedAt:Date.now(),minStated:3,providers:{claude:null,codex:null},latest:[]}}));
+ await p.goto(url);await p.getByText('No specific quota reports this week.',{exact:true}).waitFor();assert.equal(await p.locator('.internet-brief li').count(),0);await p.close();
+});
 test('only low-signal source results leave both views empty rather than fill space',async()=>{
  const p=await browser.newPage();await mock(p);
  await p.route('**/api/limit-signal',r=>r.fulfill({json:{schema:1,generatedAt:Date.now(),minStated:3,providers:{claude:{posts:0,stated:0,percent:0,sources:['GitHub','Hacker News']},codex:{posts:0,stated:0,percent:0,sources:['GitHub','Hacker News']}}}}));await p.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[{objectID:'9999',title:'Building with Claude: a new launch',author:'promotion',created_at_i:Math.floor(Date.now()/1000),points:999,num_comments:500}]}}));
- await p.goto(url);await p.getByText('No specific quota reports in the last 90 days.',{exact:true}).waitFor();
+ await p.goto(url);await p.getByText('No specific quota reports this week.',{exact:true}).waitFor();
  assert.equal(await p.locator('.internet-brief li').count(),0);
  await p.getByRole('button',{name:'More reports →',exact:true}).click();await p.getByRole('heading',{name:'No posts match this filter.'}).waitFor();
  assert.equal(await p.locator('.stories li').count(),0);await p.close();
