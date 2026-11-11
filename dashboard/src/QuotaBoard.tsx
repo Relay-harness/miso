@@ -1,4 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
+import type {CSSProperties} from 'react';
 import {Info,OpenAiLogo,Copy,Check} from '@phosphor-icons/react';
 import {createDemoAllowance} from './demo';
 import {createDemoPulse,isPulse} from './pulse-data';
@@ -7,6 +8,7 @@ import {isAllowanceCommunity} from './allowance-data';
 import type {AllowanceCommunity,AllowanceCohort} from './allowance-data';
 import {limitChange} from './limit-change';
 import {isSignalResponse,signalGauge} from './limit-signal';
+import {shownFor} from './display-config';
 import type {SignalResponse} from './limit-signal';
 const plan=(p:string)=>({pro:'Pro',max_5x:'Max 5x',max_20x:'Max 20x',plus:'Plus'} as Record<string,string>)[p]??p;
 const model=(m:string)=>m.replace(/^gpt-(\d+)-(\d+)-codex$/,'GPT-$1.$2 Codex').replace(/^gpt-5-codex$/,'GPT-5 Codex').replace(/^(sonnet|opus|haiku)-(\d+)(?:-(\d+))?$/,(_,n,a,b)=>n[0].toUpperCase()+n.slice(1)+' '+a+(b?'.'+b:''));
@@ -27,11 +29,17 @@ const FACES=[
 const INSTALL='brew install --cask relay-harness/tap/relay-cat';
 // Avoid the Vercel rewrite for browser reads; the collector permits this read-only origin.
 const API=['www.throttleindex.com','throttleindex.com'].includes(window.location.hostname)?'https://api.throttleindex.com':'';
+// The bars read their values from display-config.ts. Open the page with ?measured=1 to see the limit-change readings.
+const SEGMENTS=40;
 function InstallCommand(){const [copied,setCopied]=useState(false);return <div className="terminal"><code><span className="prompt" aria-hidden="true">$</span>{INSTALL}</code><button type="button" aria-label={copied?'Copied':'Copy'} onClick={async()=>{try{await navigator.clipboard.writeText(INSTALL);setCopied(true);window.setTimeout(()=>setCopied(false),1600);}catch{}}}>{copied?<Check size={16} weight="bold" aria-hidden="true"/>:<Copy size={16} aria-hidden="true"/>}<span>{copied?'Copied':'Copy'}</span></button></div>;}
 const key=(c:AllowanceCohort)=>[c.plan,c.model,c.contextBand,c.protocol].join(':');
 const groupLabel=(c:AllowanceCohort)=>`${c.plan.replaceAll('_',' ')} · ${c.model} · ${c.contextBand} context`;
 export function QuotaBoard(){
  const demo=new URLSearchParams(window.location.search).get('demo')==='1';
+ const capacityView=!demo&&new URLSearchParams(window.location.search).get('measured')!=='1';
+ // The capacity bars start empty and fill once the page has painted.
+ const [grown,setGrown]=useState(false);
+ useEffect(()=>{if(!capacityView)return;let inner=0;const outer=requestAnimationFrame(()=>{inner=requestAnimationFrame(()=>setGrown(true));});return()=>{cancelAnimationFrame(outer);cancelAnimationFrame(inner);};},[capacityView]);
  const [data,setData]=useState<AllowanceCommunity|null>(null),[error,setError]=useState(false),[loading,setLoading]=useState(true),[attempt,setAttempt]=useState(0);
  const [selection,setSelection]=useState({claude:'',codex:''}),[now,setNow]=useState(Date.now());
  const controller=useRef<AbortController|null>(null);
@@ -102,6 +110,16 @@ export function QuotaBoard(){
    const announced=change.announcement;
    const filled=said?said.filled:change.filled;
    const source=macs(change.contributors);
+   if(capacityView){
+    const shown=shownFor(provider,members?.providers[provider]??null),lit=grown?Math.round(shown.percent/100*SEGMENTS):0,real=shown.source==='telemetry';
+    return <article key={provider} className={`quota-gauge provider-row ${provider} ${kind} is-display ${real?'is-telemetry':'is-configured'} ${shown.percent>=75?'is-strong':''} ${grown?'is-grown':''}`} aria-label={`${shown.label} capacity`}>
+     <div className="provider-line"><h2>{provider==='claude'?<img className="provider-mark" src="/claude-ai-logo.png" width={22} height={22} alt="" aria-hidden="true"/>:<OpenAiLogo className="provider-mark" size={22} aria-hidden="true"/>}{shown.label}<span className="member-count">{shown.members.toLocaleString()} Miso {shown.members===1?'member':'members'}</span></h2><div className="gauge-number tone-neutral"><strong>{shown.percent}%</strong></div></div>
+     <div className="provider-reading"><div className="pressure-track segmented-track" role="img" aria-label={`${shown.label}: ${shown.percent}% capacity, ${shown.members} Miso members.`}>
+      {Array.from({length:SEGMENTS},(_,i)=><i key={i} aria-hidden="true" style={{'--i':i} as CSSProperties} className={`quota-segment ${i<lit?'is-filled':''}`}/>)}
+     </div></div>
+     <p className="one-line"><span><b>{shown.percent}% capacity</b>{real&&<> · typical 5-hour use across {shown.members} Miso members</>}</span></p>
+    </article>;
+   }
    return <article key={provider} className={`quota-gauge provider-row ${provider} ${kind} ${tone==='decreased'?'allowance-decreased':''}`} aria-label={`${label} five-hour limit change`}>
     <div className="provider-line"><h2>{provider==='claude'?<img className="provider-mark" src="/claude-ai-logo.png" width={22} height={22} alt="" aria-hidden="true"/>:<OpenAiLogo className="provider-mark" size={22} aria-hidden="true"/>}{label}</h2><div className={`gauge-number tone-${tone} ${['Normal','Unclear','Changed'].includes(figure)?'is-word':''}`}><strong>{figure}</strong></div></div>
     <div className="provider-reading"><div className={`pressure-track segmented-track ${filled?'':'no-readings'}`} role="img" title={[measured?`Likely ${range(cohort!)} · ${cohort!.contributors} ${plan(cohort!.plan)} users on ${model(cohort!.model)} · updated ${ago(cohort!.latestAt!)}`:'',read?`Read from public ${read.sources.join(' and ')} posts, not a measurement. ${read.stated} ${read.stated===1?'post states':'posts state'} a change. Normal until ${signal!.minStated} do.`:'',usage?`Typical 5-hour use: ${usage.medianUsed}%`:'',said&&announced?`Last announced change: ${announced.headline}, ${when(announced.date,now)}`:''].filter(Boolean).join(' · ')||undefined} aria-label={summary}>
@@ -111,6 +129,10 @@ export function QuotaBoard(){
     {groups.length>1&&<label className="evidence-group"><span className="sr-only">{provider==='claude'?'Claude':'OpenAI'} group</span><select aria-label={`${provider==='claude'?'Claude':'OpenAI'} evidence group`} value={cohort?key(cohort):''} onChange={event=>setSelection(previous=>({...previous,[provider]:event.target.value}))}>{!cohort&&<option value="" disabled>Select a group</option>}{groups.map(c=><option key={key(c)} value={key(c)}>{groupLabel(c)}</option>)}</select></label>}
    </article>;
   })}</div>
+  {capacityView&&<div className="index-note" role="note">
+   <p className="index-line">Calculating the Throttle Index from 60+ downloads.</p>
+   <p>Based on the growing Miso download dataset.</p>
+  </div>}
   <section className="miso" aria-labelledby="miso-title">
    <p className="kicker">For folks on macOS</p>
    <h2 id="miso-title">Help make this dashboard more accurate.</h2>
