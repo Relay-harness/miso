@@ -53,7 +53,8 @@ main.sketch-layout{max-width:var(--wrap);margin:0 auto;padding:var(--s-7) var(--
 .demo-notice a{color:var(--text);text-decoration:underline;text-underline-offset:3px}
 .headline{max-width:16ch;margin-bottom:var(--s-8);font:700 var(--t-head)/1.02 var(--sans);letter-spacing:-.04em;text-wrap:balance}
 .collector-notice{display:flex;align-items:center;gap:var(--s-2);margin:calc(var(--s-6) * -1) 0 var(--s-6);font-size:var(--t-14);color:var(--muted)}
-.live-status{display:flex;align-items:center;gap:var(--s-3);margin:calc(var(--s-6) * -1) 0 var(--s-6);font-size:var(--t-14);color:var(--muted)}
+.live-block{display:grid;gap:var(--s-3);margin:calc(var(--s-6) * -1) 0 var(--s-6)}
+.live-status{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-3);font-size:var(--t-14);color:var(--muted)}
 .live-status .download-count{color:inherit;text-decoration:underline;text-underline-offset:3px}
 .face-stack{display:inline-flex;align-items:center;flex:none}
 .face-stack img{display:block;width:28px;height:28px;border-radius:50%;border:2px solid var(--bg);background:var(--raised);object-fit:cover}
@@ -225,3 +226,17 @@ main.sketch-layout{max-width:var(--wrap);margin:0 auto;padding:var(--s-7) var(--
 
 /* Historical quota is visibly distinct from a fresh report. */
 .pressure-track.last-known .quota-segment.is-filled{opacity:.4}
+
+/* ---------- Live hero: every number and name comes from real data ---------- */
+.live-meta{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-2) var(--s-5);font:var(--t-12)/1.4 var(--mono);color:var(--muted)}
+.live-flag{display:inline-flex;align-items:center;gap:var(--s-2);font-variant-numeric:tabular-nums}
+.live-flag .live-dot{background:var(--calm);animation-name:live-calm}
+@keyframes live-calm{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--calm) 50%,transparent)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.week-pill{padding:2px var(--s-2);border-radius:999px;background:var(--calm-soft);color:var(--calm);font:500 var(--t-12)/1.5 var(--mono)}
+.star-tick{display:inline-flex;align-items:center;gap:var(--s-2);min-width:0;animation:tick-in .5s cubic-bezier(.22,1,.36,1)}
+.star-tick:hover{color:var(--text)}
+.star-tick img{width:18px;height:18px;border-radius:50%;background:var(--raised);flex:none}
+@keyframes tick-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.count-up{font-variant-numeric:tabular-nums;border-radius:var(--r-1);transition:background-color 1.2s ease,color 1.2s ease}
+.count-up.is-bumped{background:var(--calm-soft);color:var(--calm);transition-duration:.2s}
+@media (prefers-reduced-motion:reduce){.star-tick,.live-flag .live-dot{animation:none!important}.count-up{transition:none}}

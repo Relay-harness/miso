@@ -9,6 +9,9 @@ import type {AllowanceCommunity,AllowanceCohort} from './allowance-data';
 import {limitChange} from './limit-change';
 import {isSignalResponse,signalGauge} from './limit-signal';
 import {shownFor} from './display-config';
+import {CountUp} from './CountUp';
+import {isStargazers,starAgo,updatedAgo,smallAvatar} from './live';
+import type {Stargazers} from './live';
 import type {SignalResponse} from './limit-signal';
 const plan=(p:string)=>({pro:'Pro',max_5x:'Max 5x',max_20x:'Max 20x',plus:'Plus'} as Record<string,string>)[p]??p;
 const model=(m:string)=>m.replace(/^gpt-(\d+)-(\d+)-codex$/,'GPT-$1.$2 Codex').replace(/^gpt-5-codex$/,'GPT-5 Codex').replace(/^(sonnet|opus|haiku)-(\d+)(?:-(\d+))?$/,(_,n,a,b)=>n[0].toUpperCase()+n.slice(1)+' '+a+(b?'.'+b:''));
@@ -45,16 +48,31 @@ export function QuotaBoard(){
  const controller=useRef<AbortController|null>(null);
  const [pulse,setPulse]=useState<Pulse|null>(null);
  const [downloads,setDownloads]=useState<number|null>(null);
+ // Real fetch time of the last good downloads read. "Updated Ns ago" counts from this, never from the page load.
+ const [downloadsAt,setDownloadsAt]=useState<number|null>(null);
+ const [stars,setStars]=useState<Stargazers|null>(null);
+ const [tick,setTick]=useState(Date.now());
+ const [spot,setSpot]=useState(0);
+ const reducedMotion=typeof window!=='undefined'&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+ useEffect(()=>{if(demo)return;const t=window.setInterval(()=>{if(document.visibilityState==='visible')setTick(Date.now());},1000);return()=>window.clearInterval(t);},[demo]);
+ const recent=stars?.recent.slice(0,5)??[];
+ // The ticker walks through the newest real stargazers. With reduced motion it stays on the newest.
+ useEffect(()=>{if(reducedMotion||recent.length<2)return;const t=window.setInterval(()=>{if(document.visibilityState==='visible')setSpot(i=>i+1);},5000);return()=>window.clearInterval(t);},[reducedMotion,recent.length]);
+ useEffect(()=>{if(demo)return;let active=true;
+  const load=async()=>{if(document.visibilityState!=='visible')return;try{const r=await fetch(API+'/api/stargazers',{credentials:'omit',signal:AbortSignal.timeout(8000)});const v:unknown=r.ok?await r.json():null;if(active&&isStargazers(v))setStars(v);}catch{}};
+  void load();const t=window.setInterval(()=>void load(),600000);const onVisible=()=>{if(document.visibilityState==='visible')void load();};document.addEventListener('visibilitychange',onVisible);
+  return()=>{active=false;window.clearInterval(t);document.removeEventListener('visibilitychange',onVisible);};
+ },[demo]);
  useEffect(()=>{if(demo)return;let active=true;let request:AbortController|null=null;
   async function load(){if(document.visibilityState!=='visible')return;request?.abort();const c=new AbortController();request=c;const timeout=window.setTimeout(()=>c.abort(),8000);
-   try{const r=await fetch(API+'/api/downloads',{credentials:'omit',signal:c.signal});const v=r.ok?await r.json():null;if(active&&v&&Number.isSafeInteger(v.total)&&v.total>0)setDownloads(v.total);}catch{}finally{window.clearTimeout(timeout);}}
+   try{const r=await fetch(API+'/api/downloads',{credentials:'omit',signal:c.signal});const v=r.ok?await r.json():null;if(active&&v&&Number.isSafeInteger(v.total)&&v.total>0){setDownloads(v.total);setDownloadsAt(Date.now());}}catch{}finally{window.clearTimeout(timeout);}}
   // A page opened in a background tab skips the first load; fetch as soon as it becomes visible.
   const onVisible=()=>{if(document.visibilityState==='visible')void load();};
-  void load();const t=window.setInterval(()=>void load(),600000);document.addEventListener('visibilitychange',onVisible);
+  void load();const t=window.setInterval(()=>void load(),60000);document.addEventListener('visibilitychange',onVisible);
   return()=>{active=false;request?.abort();window.clearInterval(t);document.removeEventListener('visibilitychange',onVisible);};
  },[demo]);
  const [pulseError,setPulseError]=useState(false);
- // Members check in once a day, so the page only needs an occasional refresh: on load, on tab focus and every 10 minutes.
+ // Members check in once a day, but the page checks every minute while visible so a new member shows soon after it is real.
  useEffect(()=>{let active=true;let request:AbortController|null=null;
   async function load(){if(demo){setPulse(createDemoPulse());return;}request?.abort();const c=new AbortController();request=c;
    const timeout=window.setTimeout(()=>c.abort(),10000);
@@ -62,7 +80,7 @@ export function QuotaBoard(){
    catch{if(active&&(!c.signal.aborted||request===c))setPulseError(true);}
    finally{window.clearTimeout(timeout);}}
   const resume=()=>{setNow(Date.now());if(document.visibilityState==='visible')void load();};void load();
-  const t=window.setInterval(resume,600000);window.addEventListener('online',resume);document.addEventListener('visibilitychange',resume);
+  const t=window.setInterval(resume,60000);window.addEventListener('online',resume);document.addEventListener('visibilitychange',resume);
   return()=>{active=false;request?.abort();window.clearInterval(t);window.removeEventListener('online',resume);document.removeEventListener('visibilitychange',resume);};
  },[demo,attempt]);
  const members=pulse&&pulse.generatedAt<=now+120000?pulse:null;
@@ -90,7 +108,10 @@ export function QuotaBoard(){
  return <section className="quota-board minimal-quota allowance-board clean" aria-label="Claude and Codex limits">
   {demo&&<aside className="demo-notice" aria-label="Demo data notice"><span>Demo · made-up numbers</span><a href={window.location.pathname}>Exit demo</a></aside>}
   <h1 className="headline">did they just nerf the limits? again!?</h1>
-  {!demo&&downloads!==null&&<div className="live-status" role="status"><a className="face-stack" href="https://github.com/Relay-harness/miso/stargazers" rel="noreferrer" title="People who starred Miso on GitHub" aria-label="People who starred Miso on GitHub">{FACES.map(f=><img key={f.login} src={`https://avatars.githubusercontent.com/u/${f.id}?s=64&v=4`} width={28} height={28} alt="" loading="lazy" referrerPolicy="no-referrer" onError={e=>{e.currentTarget.style.display='none';}}/>)}</a><a className="download-count" href="https://github.com/Relay-harness/miso/releases" rel="noreferrer">{downloadLabel(downloads)} {downloads===1?'download':'downloads'} on GitHub</a></div>}
+  {!demo&&(downloads!==null||(capacityView&&recent.length>0))&&<div className="live-block">
+   <div className="live-status" role="status"><a className="face-stack" href="https://github.com/Relay-harness/miso/stargazers" rel="noreferrer" title="People who starred Miso on GitHub" aria-label="People who starred Miso on GitHub">{(capacityView&&recent.length>0?recent.slice(0,4).map(f=>({key:f.login,src:smallAvatar(f.avatar)})):FACES.map(f=>({key:f.login,src:`https://avatars.githubusercontent.com/u/${f.id}?s=64&v=4`}))).map(f=><img key={f.key} src={f.src} width={28} height={28} alt="" loading="lazy" referrerPolicy="no-referrer" onError={e=>{e.currentTarget.style.display='none';}}/>)}</a>{downloads!==null&&<a className="download-count" href="https://github.com/Relay-harness/miso/releases" rel="noreferrer">{capacityView?<CountUp value={downloads} format={downloadLabel}/>:downloadLabel(downloads)} {downloads===1?'download':'downloads'} on GitHub</a>}{capacityView&&stars?.weekCount?<span className="week-pill">+{stars.weekCount} {stars.weekCount===1?'star':'stars'} this week</span>:null}</div>
+   {capacityView&&<div className="live-meta">{downloadsAt!==null&&<span className="live-flag"><i className="live-dot" aria-hidden="true"/>Live · updated {updatedAgo(downloadsAt,tick)}</span>}{recent.length>0&&(()=>{const r=recent[spot%recent.length];return <a key={r.login} className="star-tick" href={`https://github.com/${r.login}`} rel="noreferrer"><img src={smallAvatar(r.avatar)} width={18} height={18} alt="" referrerPolicy="no-referrer"/>@{r.login} starred Miso · {starAgo(r.starredAt,tick)}</a>;})()}</div>}
+  </div>}
   {(pulseError||error||stale)&&<div className="collector-notice" role="status"><Info size={13}/><span>{stale?'Allowance evidence is stale.':'Can’t reach the data right now.'} <button onClick={()=>setAttempt(v=>v+1)}>Retry</button></span></div>}
   <div className="provider-stack">{(['claude','codex'] as const).map(provider=>{
    const kind='five_hour';
@@ -130,7 +151,7 @@ export function QuotaBoard(){
    </article>;
   })}</div>
   {capacityView&&<div className="index-note" role="note">
-   <p className="index-line">Calculating the Throttle Index from 60+ downloads.</p>
+   <p className="index-line">Calculating the Throttle Index from {downloads!==null?downloadLabel(downloads):'60+'} downloads.</p>
    <p>Based on the growing Miso download dataset.</p>
   </div>}
   <section className="miso" aria-labelledby="miso-title">

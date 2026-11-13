@@ -17,6 +17,7 @@ async function open(path='/',members=pulse(member(2,5),member(2,30))){
  await p.route('**/api/limit-signal',r=>r.fulfill({json:{schema:1,generatedAt:Date.now(),minStated:3,providers:{claude:{posts:5,stated:0,percent:0,sources:['GitHub']},codex:{posts:5,stated:0,percent:0,sources:['GitHub']}},latest:[]}}));
  await p.route('**/api/downloads',r=>r.fulfill({json:{schema:1,total:70,source:'github-release-zip-downloads'}}));
  await p.route('**/api/pulse',r=>r.fulfill({json:members}));
+ await p.route('**/api/stargazers',r=>r.fulfill({json:{schema:1,total:0,weekCount:null,recent:[],source:'github-stargazers'}}));
  await p.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));
  await p.goto(url+path);return p;
 }
@@ -38,7 +39,7 @@ test('the default page shows the configured bars with no preview labels',async()
  assert.equal(await p.getByText(/preview/i).count(),0);
  assert.deepEqual((await p.locator('.one-line').allInnerTexts()).map(t=>t.trim()),['90% capacity','85% capacity']);
  assert.deepEqual(await p.locator('.provider-line h2').evaluateAll(h=>h.map(x=>x.childNodes[1].textContent)),['Claude Code','OpenAI Codex']);
- assert.equal((await p.locator('.index-line').innerText()).trim(),'Calculating the Throttle Index from 60+ downloads.');
+ await p.waitForFunction(()=>document.querySelector('.index-line')?.textContent.trim()==='Calculating the Throttle Index from 70+ downloads.');
  await p.close();
 });
 test('a provider with enough real members shows its real figures',async()=>{

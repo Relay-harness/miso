@@ -5,6 +5,7 @@ import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {SignalStore,SignalError} from './store.mjs';
 import {createSignal} from './limit-signal.mjs';
+import {createStargazers,EMPTY as NO_STARGAZERS} from './stargazers.mjs';
 
 // Public download total from GitHub releases (ZIP assets only). Cached; null when GitHub is unreachable.
 let downloadsCache={value:null,at:0};
@@ -17,7 +18,7 @@ async function releaseDownloads(clock){
   downloadsCache.value=total;}catch{}
  return downloadsCache.value;
 }
-export function createService({path=':memory:',minCohort=5,clock=()=>Date.now(),allowedOrigin='',staticDirectory=null,clientIpHeader='',signal=createSignal({clock})}={}){
+export function createService({path=':memory:',minCohort=5,clock=()=>Date.now(),allowedOrigin='',staticDirectory=null,clientIpHeader='',signal=createSignal({clock}),stargazers=createStargazers({clock})}={}){
  const store=new SignalStore(path,{minCohort,clock});const rates=new Map();let cached=null;let cachedAt=0;let allowanceCached=null;let allowanceCachedAt=0;let pulseCached=null;let pulseCachedAt=0;
  const server=http.createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');
@@ -29,6 +30,7 @@ export function createService({path=':memory:',minCohort=5,clock=()=>Date.now(),
   if(req.method==='GET'&&pathname==='/api/allowance'){if(!allowanceCached||clock()-allowanceCachedAt>=15000){allowanceCached=store.aggregateAllowance();allowanceCachedAt=clock();}return reply(200,allowanceCached);}
   if(req.method==='GET'&&pathname==='/api/pulse'){if(!pulseCached||clock()-pulseCachedAt>=15000){pulseCached=store.pulse();pulseCachedAt=clock();}return reply(200,pulseCached);}
   if(req.method==='GET'&&pathname==='/api/downloads'){const total=process.env.MISO_OFFLINE_DOWNLOADS!==undefined?Number(process.env.MISO_OFFLINE_DOWNLOADS):await releaseDownloads(clock);return reply(200,{schema:1,total:Number.isSafeInteger(total)?total:null,source:'github-release-zip-downloads'});}
+  if(req.method==='GET'&&pathname==='/api/stargazers')return reply(200,process.env.MISO_OFFLINE_DOWNLOADS!==undefined?NO_STARGAZERS:await stargazers.get());
   if(req.method==='GET'&&pathname==='/api/limit-signal'){try{return reply(200,await signal.get());}catch{return reply(200,{schema:1,generatedAt:clock(),minStated:0,providers:{claude:null,codex:null}});}}
   if(req.method==='GET'&&pathname==='/health')return reply(200,{ok:true});
   if(req.method==='GET'&&staticDirectory){
