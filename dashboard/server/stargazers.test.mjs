@@ -27,3 +27,8 @@ test('the endpoint serves the stargazer summary',async()=>{
  const {server,store}=createService({stargazers:{get:async()=>({schema:1,total:2,weekCount:1,recent:[],source:'github-stargazers'})}});await new Promise(r=>server.listen(0,'127.0.0.1',r));
  try{const res=await fetch(`http://127.0.0.1:${server.address().port}/api/stargazers`);assert.equal(res.status,200);assert.equal((await res.json()).weekCount,1);}finally{server.close();store.close();}
 });
+test('without a token the stargazer list fails but the real total is kept',async()=>{
+ const f=async(url)=>new URL(url).pathname==='/repos/Relay-harness/miso'?{ok:true,json:async()=>({stargazers_count:7})}:{ok:false,status:401};
+ const v=await createStargazers({fetchFn:f,clock:()=>NOW,token:''}).get();
+ assert.deepEqual(v,{schema:1,total:7,weekCount:null,recent:[],source:'github-stargazers'});
+});

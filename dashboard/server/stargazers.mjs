@@ -16,12 +16,16 @@ export function createStargazers({fetchFn=fetch,clock=()=>Date.now(),ttl=600000,
   const last=Math.max(1,Math.ceil(total/100));const now=clock();const cutoff=now-7*DAY;
   let items=[],complete=false;
   // Pages are oldest first, so walk back from the last page until we pass the 7-day line.
-  for(let page=last,n=0;page>=1&&n<maxPages;page--,n++){
-   const list=await getJson(`${REPO}/stargazers?per_page=100&page=${page}`,'application/vnd.github.star+json');
-   items=[...list,...items];
-   const first=Date.parse(items[0]?.starred_at);
-   if(page===1||first<cutoff){complete=true;break;}
-  }
+  // GitHub requires a token for the stargazer list. Without one, keep the real total and leave the list empty.
+  try{
+   for(let page=last,n=0;page>=1&&n<maxPages;page--,n++){
+    const list=await getJson(`${REPO}/stargazers?per_page=100&page=${page}`,'application/vnd.github.star+json');
+    if(!Array.isArray(list))throw new Error('bad list');
+    items=[...list,...items];
+    const first=Date.parse(items[0]?.starred_at);
+    if(page===1||first<cutoff){complete=true;break;}
+   }
+  }catch{if(!items.length)return {schema:1,total,weekCount:null,recent:[],source:'github-stargazers'};complete=false;}
   const stars=items.map(x=>({login:x?.user?.login,avatar:x?.user?.avatar_url,at:Date.parse(x?.starred_at)})).filter(s=>LOGIN.test(s.login??'')&&AVATAR.test(s.avatar??'')&&Number.isFinite(s.at)&&s.at<=now+60000);
   const weekCount=complete?items.filter(x=>Date.parse(x.starred_at)>=cutoff).length:null;
   const recent=stars.slice(-8).reverse().map(s=>({login:s.login,avatar:s.avatar,starredAt:s.at}));
