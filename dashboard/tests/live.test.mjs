@@ -46,7 +46,7 @@ test('without stargazer data there is no momentum line and the fixed faces remai
  assert.equal(await p.locator('.star-tick,.week-pill').count(),0);assert.equal(await p.locator('.face-stack img').count(),3);
  await p.close();
 });
-test('a zero week count shows no pill; reduced motion keeps the newest star without animation',async()=>{
+test('a zero week count shows no pill; reduced motion keeps the newest star and no loops',async()=>{
  const p=await browser.newPage({reducedMotion:'reduce'});
  await p.route('**/api/**',r=>r.fulfill({json:/stargazers/.test(r.request().url())?stars({weekCount:0}):/downloads/.test(r.request().url())?{schema:1,total:70}:{}}));
  await p.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));await p.route('https://avatars.githubusercontent.com/**',r=>r.fulfill({status:404,body:''}));
@@ -54,14 +54,14 @@ test('a zero week count shows no pill; reduced motion keeps the newest star with
  assert.equal(await p.locator('.week-pill').count(),0);
  await p.locator('.claude .quota-segment.is-filled').nth(35).waitFor();
  assert.equal(await p.locator('.gauge-number strong').first().innerText(),'90%');
- assert.equal(await p.locator('.star-tick').evaluate(e=>getComputedStyle(e).animationName),'none');
+ assert.equal(await p.locator('.claude .is-edge').evaluate(e=>getComputedStyle(e).animationName),'none');
  await p.close();
 });
-test('a higher download total from a later poll is highlighted; measured view has no live line',async()=>{
+test('a higher download total from a later poll is highlighted; measured view has no live hero',async()=>{
  let n=70;const p=await open(stars(),()=>n);
  await p.waitForFunction(()=>document.querySelector('.download-count')?.textContent.startsWith('70+'));
  n=130;await p.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
  await p.locator('.download-count .is-bumped').waitFor();await p.waitForFunction(()=>document.querySelector('.download-count')?.textContent.startsWith('130+'));
  await p.close();
- const m=await open(stars(),()=>70,'/?measured=1');await m.locator('.provider-row').first().waitFor();assert.equal(await m.locator('.live-meta,.star-tick,.week-pill').count(),0);await m.close();
+ const m=await open(stars(),()=>70,'/?measured=1');await m.locator('.provider-row').first().waitFor();assert.equal(await m.locator('.is-edge').count(),0);await m.close();
 });

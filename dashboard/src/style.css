@@ -227,7 +227,7 @@ main.sketch-layout{max-width:var(--wrap);margin:0 auto;padding:var(--s-7) var(--
 /* Historical quota is visibly distinct from a fresh report. */
 .pressure-track.last-known .quota-segment.is-filled{opacity:.4}
 
-/* ---------- Live hero: every number and name comes from real data ---------- */
+/* ---------- Live hero: motion is visual only; every number and name comes from real data ---------- */
 .live-meta{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-2) var(--s-5);font:var(--t-12)/1.4 var(--mono);color:var(--muted)}
 .live-flag{display:inline-flex;align-items:center;gap:var(--s-2);font-variant-numeric:tabular-nums}
 .live-flag .live-dot{background:var(--calm);animation-name:live-calm}
@@ -239,4 +239,41 @@ main.sketch-layout{max-width:var(--wrap);margin:0 auto;padding:var(--s-7) var(--
 @keyframes tick-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .count-up{font-variant-numeric:tabular-nums;border-radius:var(--r-1);transition:background-color 1.2s ease,color 1.2s ease}
 .count-up.is-bumped{background:var(--calm-soft);color:var(--calm);transition-duration:.2s}
-@media (prefers-reduced-motion:reduce){.star-tick,.live-flag .live-dot{animation:none!important}.count-up{transition:none}}
+
+/* Bars: a breathing leading edge, a slow light sweep over the filled part, a faint shimmer on the empty part. */
+.is-display .segmented-track{position:relative;overflow:hidden;border-radius:var(--r-1)}
+.is-display.is-grown .quota-segment.is-edge{animation:edge-breathe 2.6s ease-in-out calc(var(--lit,0) * 18ms + 900ms) infinite}
+@keyframes edge-breathe{0%,100%{filter:brightness(1)}50%{filter:brightness(1.4);box-shadow:0 0 14px var(--edge)}}
+.claude.is-display{--edge:var(--claude)}
+.codex.is-display{--edge:var(--openai)}
+.is-display.is-grown .segmented-track::after{content:'';position:absolute;inset:0 auto 0 0;width:calc(var(--lit,0) / 40 * 100%);pointer-events:none;mix-blend-mode:soft-light;background:linear-gradient(100deg,transparent 35%,rgba(255,255,255,.75) 50%,transparent 65%) 130% 0/300% 100% no-repeat;animation:sweep 6s ease-in-out calc(var(--lit,0) * 18ms + 1200ms) infinite}
+@keyframes sweep{0%{background-position:130% 0}35%,100%{background-position:-30% 0}}
+.is-display.is-grown .quota-segment:not(.is-filled){animation:shimmer 4.5s ease-in-out calc(var(--i,0) * 110ms) infinite}
+@keyframes shimmer{0%,70%,100%{background-color:var(--surface)}85%{background-color:var(--raised)}}
+@media (prefers-reduced-motion:reduce){
+ .is-display .segmented-track::after{display:none}
+ .is-display .quota-segment,.is-display .quota-segment.is-edge,.star-tick,.live-flag .live-dot{animation:none!important}
+ .count-up{transition:none}
+}
+
+/* Live drift on the configured capacity bars (live-drift.ts). */
+.is-display.is-settled .quota-segment{transition-duration:.35s;transition-delay:0s}
+.is-display.is-settled .quota-segment.is-edge{animation:edge-breathe 2.6s ease-in-out infinite}
+.is-display .gauge-number{position:relative}
+.delta-chip{position:absolute;right:100%;top:50%;margin-right:var(--s-2);padding:2px 6px;border-radius:999px;font:600 var(--t-12)/1.2 var(--mono);white-space:nowrap;font-variant-numeric:tabular-nums;animation:chip 1.6s cubic-bezier(.22,1,.36,1) forwards}
+.delta-chip.up{color:var(--calm);background:var(--calm-soft)}
+.delta-chip.down{color:var(--accent);background:var(--accent-soft)}
+@keyframes chip{0%{opacity:0;transform:translateY(-20%)}15%{opacity:1;transform:translateY(-50%)}75%{opacity:1;transform:translateY(-50%)}100%{opacity:0;transform:translateY(-90%)}}
+.row-live{display:inline-flex;align-items:center;gap:var(--s-3);font:var(--t-12)/1.4 var(--mono);color:var(--muted)}
+.spark{display:block;overflow:visible}
+.spark-line{fill:none;stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
+.spark-fill{stroke:none;opacity:.14}
+.spark-claude .spark-line{stroke:var(--claude)}.spark-claude .spark-fill,.spark-claude .spark-dot{fill:var(--claude)}
+.spark-codex .spark-line{stroke:var(--openai)}.spark-codex .spark-fill,.spark-codex .spark-dot{fill:var(--openai)}
+.spark-dot{animation:spark-pulse 1.8s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes spark-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.55;transform:scale(1.6)}}
+.is-display.is-settled .gauge-number>strong .count-up{transition:color .4s ease}
+@media (prefers-reduced-motion:reduce){.delta-chip,.spark-dot{animation:none}}
+.is-display .gauge-number .count-up.is-bumped{background:none;color:inherit}
+.row-flag{display:inline-flex;align-items:center;gap:var(--s-2);font-variant-numeric:tabular-nums}
+.row-flag .live-dot{background:var(--calm);animation-name:live-calm}

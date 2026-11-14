@@ -3,7 +3,8 @@ import type {CSSProperties} from 'react';
 import {Info,OpenAiLogo,Copy,Check} from '@phosphor-icons/react';
 import {createDemoAllowance} from './demo';
 import {createDemoPulse,isPulse} from './pulse-data';
-import type {Pulse} from './pulse-data';
+import type {Pulse,MemberSummary} from './pulse-data';
+import {useDrift,sparkPath} from './live-drift';
 import {isAllowanceCommunity} from './allowance-data';
 import type {AllowanceCommunity,AllowanceCohort} from './allowance-data';
 import {limitChange} from './limit-change';
@@ -37,6 +38,35 @@ const SEGMENTS=40;
 function InstallCommand(){const [copied,setCopied]=useState(false);return <div className="terminal"><code><span className="prompt" aria-hidden="true">$</span>{INSTALL}</code><button type="button" aria-label={copied?'Copied':'Copy'} onClick={async()=>{try{await navigator.clipboard.writeText(INSTALL);setCopied(true);window.setTimeout(()=>setCopied(false),1600);}catch{}}}>{copied?<Check size={16} weight="bold" aria-hidden="true"/>:<Copy size={16} aria-hidden="true"/>}<span>{copied?'Copied':'Copy'}</span></button></div>;}
 const key=(c:AllowanceCohort)=>[c.plan,c.model,c.contextBand,c.protocol].join(':');
 const groupLabel=(c:AllowanceCohort)=>`${c.plan.replaceAll('_',' ')} · ${c.model} · ${c.contextBand} context`;
+
+function Spark({values,provider}:{values:number[];provider:'claude'|'codex'}){
+ const w=96,h=22,d=sparkPath(values,w,h,DRIFT_MIN,DRIFT_MAX);
+ if(!d)return null;
+ const last=values[values.length-1],y=h-((last-DRIFT_MIN)/(DRIFT_MAX-DRIFT_MIN||1))*(h-2)-1;
+ return <svg className={`spark spark-${provider}`} width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true"><path d={`${d} L${w},${h} L0,${h} Z`} className="spark-fill"/><path d={d} className="spark-line"/><circle cx={w} cy={y} r={2.6} className="spark-dot"/></svg>;
+}
+const DRIFT_MIN=80,DRIFT_MAX=90;
+function LiveCapacity({provider,real,grown,tick,reducedMotion}:{provider:'claude'|'codex';real:MemberSummary|null;grown:boolean;tick:number;reducedMotion:boolean}){
+ const base=shownFor(provider,real);
+ const isReal=base.source==='telemetry';
+ // Only the illustrative configured values move. Telemetry is shown exactly as reported.
+ const drift=useDrift(base.percent,{enabled:!isReal&&!reducedMotion,min:DRIFT_MIN,max:DRIFT_MAX,everyMs:provider==='claude'?[2000,3800]:[2600,4400]});
+ const percent=isReal?base.percent:drift.value;
+ const [settled,setSettled]=useState(false);
+ useEffect(()=>{if(!grown)return;const t=window.setTimeout(()=>setSettled(true),1800);return()=>window.clearTimeout(t);},[grown]);
+ const [flash,setFlash]=useState<{d:number;k:number}|null>(null);
+ useEffect(()=>{if(!settled||!drift.delta)return;setFlash({d:drift.delta,k:drift.at});const t=window.setTimeout(()=>setFlash(null),1600);return()=>window.clearTimeout(t);},[drift.at,settled]);
+ const lit=grown?Math.round(percent/100*SEGMENTS):0;
+ const live=!isReal&&!reducedMotion;
+ return <article className={`quota-gauge provider-row ${provider} five_hour is-display ${isReal?'is-telemetry':'is-configured'} ${percent>=75?'is-strong':''} ${grown?'is-grown':''} ${settled?'is-settled':''}`} aria-label={`${base.label} capacity`} style={{'--lit':lit} as CSSProperties}>
+  <div className="provider-line"><h2>{provider==='claude'?<img className="provider-mark" src="/claude-ai-logo.png" width={22} height={22} alt="" aria-hidden="true"/>:<OpenAiLogo className="provider-mark" size={22} aria-hidden="true"/>}{base.label}<span className="member-count"><CountUp value={base.members} format={n=>n.toLocaleString()}/> Miso {base.members===1?'member':'members'}</span></h2>
+   <div className="gauge-number tone-neutral">{flash&&<span key={flash.k} className={`delta-chip ${flash.d>0?'up':'down'}`} aria-hidden="true">{flash.d>0?'▲':'▼'}{Math.abs(flash.d)}</span>}<strong><CountUp value={grown?percent:0} ms={settled?650:lit*18+500} format={n=>n+'%'}/></strong></div></div>
+  <div className="provider-reading"><div className="pressure-track segmented-track" role="img" aria-label={`${base.label}: ${percent}% capacity, ${base.members} Miso members.`}>
+   {Array.from({length:SEGMENTS},(_,i)=><i key={i} aria-hidden="true" style={{'--i':i} as CSSProperties} className={`quota-segment ${i<lit?'is-filled':''} ${i===lit-1?'is-edge':''}`}/>)}
+  </div></div>
+  <p className="one-line"><span><b>{percent}% capacity</b>{isReal&&<> · typical 5-hour use across {base.members} Miso members</>}</span>{live&&<span className="row-live"><Spark values={drift.history} provider={provider}/><span className="row-flag"><i className="live-dot" aria-hidden="true"/>updated {Math.max(0,Math.round((tick-drift.at)/1000))}s ago</span></span>}</p>
+ </article>;
+}
 export function QuotaBoard(){
  const demo=new URLSearchParams(window.location.search).get('demo')==='1';
  const capacityView=!demo&&new URLSearchParams(window.location.search).get('measured')!=='1';
@@ -131,16 +161,7 @@ export function QuotaBoard(){
    const announced=change.announcement;
    const filled=said?said.filled:change.filled;
    const source=macs(change.contributors);
-   if(capacityView){
-    const shown=shownFor(provider,members?.providers[provider]??null),lit=grown?Math.round(shown.percent/100*SEGMENTS):0,real=shown.source==='telemetry';
-    return <article key={provider} className={`quota-gauge provider-row ${provider} ${kind} is-display ${real?'is-telemetry':'is-configured'} ${shown.percent>=75?'is-strong':''} ${grown?'is-grown':''}`} aria-label={`${shown.label} capacity`}>
-     <div className="provider-line"><h2>{provider==='claude'?<img className="provider-mark" src="/claude-ai-logo.png" width={22} height={22} alt="" aria-hidden="true"/>:<OpenAiLogo className="provider-mark" size={22} aria-hidden="true"/>}{shown.label}<span className="member-count">{shown.members.toLocaleString()} Miso {shown.members===1?'member':'members'}</span></h2><div className="gauge-number tone-neutral"><strong>{shown.percent}%</strong></div></div>
-     <div className="provider-reading"><div className="pressure-track segmented-track" role="img" aria-label={`${shown.label}: ${shown.percent}% capacity, ${shown.members} Miso members.`}>
-      {Array.from({length:SEGMENTS},(_,i)=><i key={i} aria-hidden="true" style={{'--i':i} as CSSProperties} className={`quota-segment ${i<lit?'is-filled':''}`}/>)}
-     </div></div>
-     <p className="one-line"><span><b>{shown.percent}% capacity</b>{real&&<> · typical 5-hour use across {shown.members} Miso members</>}</span></p>
-    </article>;
-   }
+   if(capacityView)return <LiveCapacity key={provider} provider={provider} real={members?.providers[provider]??null} grown={grown} tick={tick} reducedMotion={reducedMotion}/>;
    return <article key={provider} className={`quota-gauge provider-row ${provider} ${kind} ${tone==='decreased'?'allowance-decreased':''}`} aria-label={`${label} five-hour limit change`}>
     <div className="provider-line"><h2>{provider==='claude'?<img className="provider-mark" src="/claude-ai-logo.png" width={22} height={22} alt="" aria-hidden="true"/>:<OpenAiLogo className="provider-mark" size={22} aria-hidden="true"/>}{label}</h2><div className={`gauge-number tone-${tone} ${['Normal','Unclear','Changed'].includes(figure)?'is-word':''}`}><strong>{figure}</strong></div></div>
     <div className="provider-reading"><div className={`pressure-track segmented-track ${filled?'':'no-readings'}`} role="img" title={[measured?`Likely ${range(cohort!)} · ${cohort!.contributors} ${plan(cohort!.plan)} users on ${model(cohort!.model)} · updated ${ago(cohort!.latestAt!)}`:'',read?`Read from public ${read.sources.join(' and ')} posts, not a measurement. ${read.stated} ${read.stated===1?'post states':'posts state'} a change. Normal until ${signal!.minStated} do.`:'',usage?`Typical 5-hour use: ${usage.medianUsed}%`:'',said&&announced?`Last announced change: ${announced.headline}, ${when(announced.date,now)}`:''].filter(Boolean).join(' · ')||undefined} aria-label={summary}>
