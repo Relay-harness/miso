@@ -4,7 +4,7 @@ import {Info,OpenAiLogo,Copy,Check} from '@phosphor-icons/react';
 import {createDemoAllowance} from './demo';
 import {createDemoPulse,isPulse} from './pulse-data';
 import type {Pulse,MemberSummary} from './pulse-data';
-import {useDrift,sparkPath} from './live-drift';
+import {useHourly,sparkPath} from './live-drift';
 import {isAllowanceCommunity} from './allowance-data';
 import type {AllowanceCommunity,AllowanceCohort} from './allowance-data';
 import {limitChange} from './limit-change';
@@ -50,21 +50,24 @@ function LiveCapacity({provider,real,grown,tick,reducedMotion}:{provider:'claude
  const base=shownFor(provider,real);
  const isReal=base.source==='telemetry';
  // Only the illustrative configured values move. Telemetry is shown exactly as reported.
- const drift=useDrift(base.percent,{enabled:!isReal&&!reducedMotion,min:DRIFT_MIN,max:DRIFT_MAX,everyMs:provider==='claude'?[2000,3800]:[2600,4400]});
- const percent=isReal?base.percent:drift.value;
+ // The same figure for every visitor, changing once at the top of each hour.
+ const hourly=useHourly(provider,{enabled:!isReal,min:DRIFT_MIN,max:DRIFT_MAX});
+ const percent=isReal||!hourly?base.percent:hourly.value;
+ const seenAt=useRef<number|null>(null);
  const [settled,setSettled]=useState(false);
  useEffect(()=>{if(!grown)return;const t=window.setTimeout(()=>setSettled(true),1800);return()=>window.clearTimeout(t);},[grown]);
  const [flash,setFlash]=useState<{d:number;k:number}|null>(null);
- useEffect(()=>{if(!settled||!drift.delta)return;setFlash({d:drift.delta,k:drift.at});const t=window.setTimeout(()=>setFlash(null),1600);return()=>window.clearTimeout(t);},[drift.at,settled]);
+ // The change chip shows only when the hour turns while the page is open, not on every load.
+ useEffect(()=>{if(!hourly)return;const first=seenAt.current===null;const changed=seenAt.current!==hourly.at;seenAt.current=hourly.at;if(first||!changed||!hourly.delta||reducedMotion)return;setFlash({d:hourly.delta,k:hourly.at});const t=window.setTimeout(()=>setFlash(null),4000);return()=>window.clearTimeout(t);},[hourly?.at]);
  const lit=grown?Math.round(percent/100*SEGMENTS):0;
- const live=!isReal&&!reducedMotion;
+ const live=!isReal&&!!hourly;
  return <article className={`quota-gauge provider-row ${provider} five_hour is-display ${isReal?'is-telemetry':'is-configured'} ${percent>=75?'is-strong':''} ${grown?'is-grown':''} ${settled?'is-settled':''}`} aria-label={`${base.label} capacity`} style={{'--lit':lit} as CSSProperties}>
   <div className="provider-line"><h2>{provider==='claude'?<img className="provider-mark" src="/claude-ai-logo.png" width={22} height={22} alt="" aria-hidden="true"/>:<OpenAiLogo className="provider-mark" size={22} aria-hidden="true"/>}{base.label}<span className="member-count"><CountUp value={base.members} format={n=>n.toLocaleString()}/> Miso {base.members===1?'member':'members'}</span></h2>
    <div className="gauge-number tone-neutral">{flash&&<span key={flash.k} className={`delta-chip ${flash.d>0?'up':'down'}`} aria-hidden="true">{flash.d>0?'▲':'▼'}{Math.abs(flash.d)}</span>}<strong><CountUp value={grown?percent:0} ms={settled?650:lit*18+500} format={n=>n+'%'}/></strong></div></div>
   <div className="provider-reading"><div className="pressure-track segmented-track" role="img" aria-label={`${base.label}: ${percent}% capacity, ${base.members} Miso members.`}>
    {Array.from({length:SEGMENTS},(_,i)=><i key={i} aria-hidden="true" style={{'--i':i} as CSSProperties} className={`quota-segment ${i<lit?'is-filled':''} ${i===lit-1?'is-edge':''}`}/>)}
   </div></div>
-  <p className="one-line"><span><b>{percent}% capacity</b>{isReal&&<> · typical 5-hour use across {base.members} Miso members</>}</span>{live&&<span className="row-live"><Spark values={drift.history} provider={provider}/><span className="row-flag"><i className="live-dot" aria-hidden="true"/>updated {Math.max(0,Math.round((tick-drift.at)/1000))}s ago</span></span>}</p>
+  <p className="one-line"><span><b>{percent}% capacity</b>{isReal&&<> · typical 5-hour use across {base.members} Miso members</>}</span>{live&&<span className="row-live"><Spark values={hourly!.history} provider={provider}/><span className="row-flag" title="Updates every hour"><i className="live-dot" aria-hidden="true"/>updated {updatedAgo(hourly!.at,tick)} · hourly</span></span>}</p>
  </article>;
 }
 export function QuotaBoard(){

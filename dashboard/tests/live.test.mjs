@@ -52,8 +52,8 @@ test('a zero week count shows no pill; reduced motion keeps the newest star and 
  await p.route('https://hn.algolia.com/**',r=>r.fulfill({json:{hits:[]}}));await p.route('https://avatars.githubusercontent.com/**',r=>r.fulfill({status:404,body:''}));
  await p.goto(url);await p.locator('.star-tick').waitFor();
  assert.equal(await p.locator('.week-pill').count(),0);
- await p.locator('.claude .quota-segment.is-filled').nth(35).waitFor();
- assert.equal(await p.locator('.gauge-number strong').first().innerText(),'90%');
+ await p.locator('.claude .quota-segment.is-filled').nth(31).waitFor();
+ assert.match(await p.locator('.gauge-number strong').first().innerText(),/^(8\d|90)%$/);
  assert.equal(await p.locator('.claude .is-edge').evaluate(e=>getComputedStyle(e).animationName),'none');
  await p.close();
 });
