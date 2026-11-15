@@ -260,7 +260,7 @@ main.sketch-layout{max-width:var(--wrap);margin:0 auto;padding:var(--s-7) var(--
 .is-display.is-settled .quota-segment{transition-duration:.35s;transition-delay:0s}
 .is-display.is-settled .quota-segment.is-edge{animation:edge-breathe 2.6s ease-in-out infinite}
 .is-display .gauge-number{position:relative}
-.delta-chip{position:absolute;right:100%;top:50%;margin-right:var(--s-2);padding:2px 6px;border-radius:999px;font:600 var(--t-12)/1.2 var(--mono);white-space:nowrap;font-variant-numeric:tabular-nums;animation:chip 1.6s cubic-bezier(.22,1,.36,1) forwards}
+.delta-chip{position:absolute;right:100%;top:50%;margin-right:var(--s-2);padding:2px 6px;border-radius:999px;font:600 var(--t-12)/1.2 var(--mono);white-space:nowrap;font-variant-numeric:tabular-nums;animation:chip 4s cubic-bezier(.22,1,.36,1) forwards}
 .delta-chip.up{color:var(--calm);background:var(--calm-soft)}
 .delta-chip.down{color:var(--accent);background:var(--accent-soft)}
 @keyframes chip{0%{opacity:0;transform:translateY(-20%)}15%{opacity:1;transform:translateY(-50%)}75%{opacity:1;transform:translateY(-50%)}100%{opacity:0;transform:translateY(-90%)}}
